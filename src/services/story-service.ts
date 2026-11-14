@@ -259,21 +259,27 @@ export class StoryService {
         },
         items: sql<Array<{
         id: string;
+        storyId: string;
         mediaUrl: string;
+        thumbnailUrl: string | null;
         type: string;
         duration: string;
         sortOrder: number;
         stickerType: string | null;
         stickerData: Record<string, any> | null;
+        createdAt: string;
       }>>`(
           SELECT json_agg(json_build_object(
             'id', si.id,
+            'storyId', si.story_id,
             'mediaUrl', si.media_url,
+            'thumbnailUrl', si.thumbnail_url,
             'type', si.type,
             'duration', si.duration,
             'sortOrder', si.sort_order,
             'stickerType', si.sticker_type,
-            'stickerData', si.sticker_data
+            'stickerData', si.sticker_data,
+            'createdAt', to_char(si.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
           ) ORDER BY si.sort_order)
           FROM story_items si
           WHERE si.story_id = stories.id
@@ -297,27 +303,47 @@ export class StoryService {
       return true; // public or other
     });
 
-    // Group by author
-    const storiesByAuthor = new Map<string, StoryFeedItem>();
+    // Group stories by author for any consumer expecting grouped format
+    const storiesByAuthor = new Map<string, Array<typeof activeStories[0]>>();
     for (const story of filteredStories) {
       const authorId = story.authorId;
       if (!storiesByAuthor.has(authorId)) {
-        storiesByAuthor.set(authorId, {
-          userId: authorId,
-          author: story.author,
-          stories: [],
-        });
+        storiesByAuthor.set(authorId, []);
       }
-      storiesByAuthor.get(authorId)!.stories.push({
-        id: story.id,
-        createdAt: story.createdAt,
-        expiresAt: story.expiresAt,
-        audience: story.audience,
-        items: story.items || [],
+      storiesByAuthor.get(authorId)!.push(story);
+    }
+
+    // Return hybrid items compatible with BOTH StoryDTO (direct flat/grouped by story)
+    // and StoryFeedItem (with userId, author, stories)
+    const feedItems: any[] = [];
+    for (const [authorId, authorStories] of storiesByAuthor.entries()) {
+      const primaryStory = authorStories[0];
+      // Combine all story items from all active stories of this author so StoryViewer can play them all
+      const allItems = authorStories.flatMap((s) => s.items || []);
+
+      feedItems.push({
+        id: primaryStory.id,
+        authorId: primaryStory.authorId,
+        userId: authorId,
+        author: primaryStory.author,
+        items: allItems,
+        stories: authorStories.map((s) => ({
+          id: s.id,
+          createdAt: s.createdAt,
+          expiresAt: s.expiresAt,
+          audience: s.audience,
+          items: s.items || [],
+        })),
+        audience: primaryStory.audience,
+        viewsCount: 0,
+        repliesCount: 0,
+        viewed: false,
+        createdAt: primaryStory.createdAt.toISOString(),
+        expiresAt: primaryStory.expiresAt.toISOString(),
       });
     }
 
-    return Array.from(storiesByAuthor.values());
+    return feedItems;
   }
 
   /**
@@ -411,21 +437,27 @@ export class StoryService {
         },
         items: sql<Array<{
         id: string;
+        storyId: string;
         mediaUrl: string;
+        thumbnailUrl: string | null;
         type: string;
         duration: string;
         sortOrder: number;
         stickerType: string | null;
         stickerData: Record<string, any> | null;
+        createdAt: string;
       }>>`(
           SELECT json_agg(json_build_object(
             'id', si.id,
+            'storyId', si.story_id,
             'mediaUrl', si.media_url,
+            'thumbnailUrl', si.thumbnail_url,
             'type', si.type,
             'duration', si.duration,
             'sortOrder', si.sort_order,
             'stickerType', si.sticker_type,
-            'stickerData', si.sticker_data
+            'stickerData', si.sticker_data,
+            'createdAt', to_char(si.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
           ) ORDER BY si.sort_order)
           FROM story_items si
           WHERE si.story_id = stories.id
