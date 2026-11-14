@@ -167,7 +167,39 @@ export class FeedService {
 
     if (cursor) {
       query = `
-        SELECT * FROM feed_items
+        SELECT
+          post_id as "postId",
+          author_id as "authorId",
+          caption,
+          location_name as "locationName",
+          location_lat as "locationLat",
+          location_lng as "locationLng",
+          likes_count as "likesCount",
+          comments_count as "commentsCount",
+          shares_count as "sharesCount",
+          saves_count as "savesCount",
+          views_count as "viewsCount",
+          is_sponsored as "isSponsored",
+          sponsor_user_id as "sponsorUserId",
+          audience,
+          close_friends_only as "closeFriendsOnly",
+          created_at as "createdAt",
+          updated_at as "updatedAt",
+          username,
+          full_name as "fullName",
+          avatar_url as "avatarUrl",
+          is_verified as "isVerified",
+          is_private as "isPrivate",
+          media_url as "mediaUrl",
+          thumbnail_url as "thumbnailUrl",
+          media_type as "mediaType",
+          width,
+          height,
+          duration,
+          sort_order as "sortOrder",
+          engagement_score as "engagementScore",
+          EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 as "hoursSincePost"
+        FROM feed_items
         WHERE (created_at < '${cursor.timestamp}'
           OR (created_at = '${cursor.timestamp}' AND engagement_score < ${cursor.engagementScore || 0})
           OR (created_at = '${cursor.timestamp}' AND engagement_score = ${cursor.engagementScore || 0} AND post_id < '${cursor.postId}'))
@@ -177,7 +209,39 @@ export class FeedService {
       `;
     } else {
       query = `
-        SELECT * FROM feed_items
+        SELECT
+          post_id as "postId",
+          author_id as "authorId",
+          caption,
+          location_name as "locationName",
+          location_lat as "locationLat",
+          location_lng as "locationLng",
+          likes_count as "likesCount",
+          comments_count as "commentsCount",
+          shares_count as "sharesCount",
+          saves_count as "savesCount",
+          views_count as "viewsCount",
+          is_sponsored as "isSponsored",
+          sponsor_user_id as "sponsorUserId",
+          audience,
+          close_friends_only as "closeFriendsOnly",
+          created_at as "createdAt",
+          updated_at as "updatedAt",
+          username,
+          full_name as "fullName",
+          avatar_url as "avatarUrl",
+          is_verified as "isVerified",
+          is_private as "isPrivate",
+          media_url as "mediaUrl",
+          thumbnail_url as "thumbnailUrl",
+          media_type as "mediaType",
+          width,
+          height,
+          duration,
+          sort_order as "sortOrder",
+          engagement_score as "engagementScore",
+          EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 as "hoursSincePost"
+        FROM feed_items
         WHERE created_at >= '${windowStart}'
         ORDER BY created_at DESC, engagement_score DESC, post_id DESC
         LIMIT ${limit}
@@ -376,10 +440,45 @@ export class FeedService {
     try {
       // Get sponsored posts for this user
       const sponsoredResult = await db.execute(sql`
-        SELECT * FROM get_sponsored_posts_for_feed(${this.userId}::uuid, 3)
+        SELECT * FROM get_sponsored_posts_for_feed(${this.userId}, 3)
       `);
 
-      const sponsoredPosts = sponsoredResult.rows as unknown as FeedItem[];
+      // Map snake_case columns to camelCase FeedItem properties
+      const mapSponsoredPost = (row: any): FeedItem => ({
+        postId: row.post_id,
+        authorId: row.author_id,
+        caption: row.caption,
+        locationName: row.location_name,
+        locationLat: row.location_lat,
+        locationLng: row.location_lng,
+        likesCount: row.likes_count,
+        commentsCount: row.comments_count,
+        sharesCount: row.shares_count,
+        savesCount: row.saves_count,
+        viewsCount: row.views_count,
+        isSponsored: row.is_sponsored,
+        sponsorUserId: row.sponsor_user_id,
+        audience: row.audience,
+        closeFriendsOnly: row.close_friends_only,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        username: row.username,
+        fullName: row.full_name,
+        avatarUrl: row.avatar_url,
+        isVerified: row.is_verified,
+        isPrivate: row.is_private,
+        mediaUrl: row.media_url,
+        thumbnailUrl: row.thumbnail_url,
+        mediaType: row.media_type,
+        width: row.width,
+        height: row.height,
+        duration: row.duration,
+        sortOrder: row.sort_order,
+        engagementScore: row.engagement_score,
+        hoursSincePost: (Date.now() - new Date(row.created_at).getTime()) / (1000 * 60 * 60),
+      });
+
+      const sponsoredPosts = sponsoredResult.rows.map(mapSponsoredPost);
       if (sponsoredPosts.length === 0) return organicItems;
 
       const result: RankedFeedItem[] = [];

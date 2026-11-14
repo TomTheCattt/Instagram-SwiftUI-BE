@@ -75,15 +75,7 @@ import { startAnalyticsAggregationJob, stopAnalyticsAggregationJob } from "./job
 // Import middleware
 import { telemetry } from "./middleware/telemetry";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler";
-import {
-  anonymousRateLimit,
-  authenticatedRateLimit,
-  authEndpointsRateLimit,
-  uploadEndpointsRateLimit,
-  searchEndpointsRateLimit,
-  adminRateLimit
-} from "./middleware/rate-limit";
-import { authMiddleware, optionalAuthMiddleware } from "./middleware/auth";
+import { optionalAuthMiddleware } from "./middleware/auth";
 import {
   validateBody,
   validateQuery,
@@ -213,34 +205,34 @@ app.use(
   })
 );
 
-// 4. Rate limiting middleware
-// Auth endpoints: stricter limits
-app.use("/v1/auth/*", authEndpointsRateLimit);
+// 4. Optional auth middleware (runs globally to populate user context)
+app.use("/v1/*", optionalAuthMiddleware);
 
-// Upload endpoints: moderate limits
-app.use("/v1/upload/*", uploadEndpointsRateLimit);
+// 5. Rate limiting middleware - DISABLED for development
+// Uncomment to enable:
+// app.use("/v1/auth/*", authEndpointsRateLimit);
+// app.use("/v1/upload/*", uploadEndpointsRateLimit);
+// app.use("/v1/search*", searchEndpointsRateLimit);
+// app.use("/v1/admin/*", adminRateLimit);
+// app.use("/v1/*", async (c, next) => {
+//   const path = c.req.path;
+//   if (
+//     path.startsWith("/v1/auth/") ||
+//     path.startsWith("/v1/search") ||
+//     path.startsWith("/v1/upload") ||
+//     path.startsWith("/v1/admin/")
+//   ) {
+//     return next();
+//   }
+//   const user = c.get("user");
+//   if (user) {
+//     return authenticatedRateLimit(c, next);
+//   } else {
+//     return anonymousRateLimit(c, next);
+//   }
+// });
 
-// Search endpoints
-app.use("/v1/search*", searchEndpointsRateLimit);
-
-// Admin endpoints
-app.use("/v1/admin/*", adminRateLimit);
-
-// API endpoints: tiered rate limiting based on auth (skip auth endpoints)
-app.use("/v1/*", async (c, next) => {
-  // Skip rate limiting for auth endpoints (handled by specific middleware)
-  if (c.req.path.startsWith("/v1/auth/")) {
-    return next();
-  }
-  const user = c.get("user");
-  if (user) {
-    return authenticatedRateLimit(c, next);
-  } else {
-    return anonymousRateLimit(c, next);
-  }
-});
-
-// 5. Idempotency middleware for mutating endpoints
+// 6. Idempotency middleware for mutating endpoints
 app.use("/v1/*", idempotencyMiddleware({
   required: false, // Don't require by default, endpoints can opt-in
   methods: ["POST", "PUT", "PATCH", "DELETE"],
@@ -347,10 +339,15 @@ app.route("/", healthRouter);
 
 app.route("/v1/auth", authRouter);
 app.route("/v1/user", userRouter);
+app.route("/v1/users", userRouter); // Plural alias for FE
 app.route("/v1/posts", postRouter);
+app.route("/v1/post", postRouter); // Singular alias for FE
 app.route("/v1/reels", reelRouter);
+app.route("/v1/reel", reelRouter); // Singular alias for FE
 app.route("/v1/stories", storyRouter);
+app.route("/v1/story", storyRouter); // Singular alias for FE
 app.route("/v1/conversations", conversationRouter);
+app.route("/v1/conversation", conversationRouter); // Singular alias for FE
 app.route("/v1/calls", callRouter);
 app.route("/v1/callkit", callkitRouter);
 app.route("/v1/notifications", notificationRouter);

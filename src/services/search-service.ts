@@ -110,20 +110,31 @@ const QUERY_PROMPT = "Instruct: Given a question about Neon, retrieve documentat
 // ============================================================================
 
 class EmbeddingClient {
-  private baseUrl: string;
-  private apiKey: string;
+  private baseUrl: string | undefined;
+  private apiKey: string | undefined;
+  private isConfigured: boolean;
 
   constructor() {
-    this.baseUrl = process.env.NEON_AI_GATEWAY_BASE_URL!;
-    this.apiKey = process.env.NEON_AI_GATEWAY_TOKEN!;
+    this.baseUrl = process.env.NEON_AI_GATEWAY_BASE_URL;
+    this.apiKey = process.env.NEON_AI_GATEWAY_TOKEN;
+    this.isConfigured = Boolean(this.baseUrl && this.apiKey);
 
-    if (!this.baseUrl || !this.apiKey) {
-      throw new Error("NEON_AI_GATEWAY_BASE_URL and NEON_AI_GATEWAY_TOKEN must be set");
+    if (!this.isConfigured) {
+      console.warn("[SearchService] NEON_AI_GATEWAY not configured, using fallback search (no vector embeddings)");
     }
   }
 
-  async generateEmbedding(input: EmbeddingInput): Promise<number[]> {
+  isAvailable(): boolean {
+    return this.isConfigured;
+  }
+
+  async generateEmbedding(input: EmbeddingInput): Promise<number[] | null> {
     const { text, model = EMBEDDING_MODEL, dimensions = EMBEDDING_DIMENSIONS } = input;
+
+    if (!this.isConfigured) {
+      // Return null to skip vector search in development
+      return null;
+    }
 
     // Apply query prompt for search queries
     const promptText = text.startsWith("Instruct:") ? text : `${QUERY_PROMPT}${text}`;
@@ -151,7 +162,28 @@ class EmbeddingClient {
     return data.data[0].embedding;
   }
 
+  private generateMockEmbedding(text: string, dimensions: number): number[] {
+    // Simple deterministic mock embedding based on text hash
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash) + text.charCodeAt(i);
+      hash |= 0;
+    }
+
+    const embedding = new Array(dimensions);
+    for (let i = 0; i < dimensions; i++) {
+      // Use pseudo-random but deterministic values
+      hash = (hash * 1664525 + 1013904223) >>> 0;
+      embedding[i] = (hash / 0xFFFFFFFF) * 2 - 1; // Normalize to [-1, 1]
+    }
+    return embedding;
+  }
+
   async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+    if (!this.isConfigured) {
+      return texts.map(t => this.generateMockEmbedding(t, EMBEDDING_DIMENSIONS));
+    }
+
     const promptTexts = texts.map(t => t.startsWith("Instruct:") ? t : `${QUERY_PROMPT}${t}`);
 
     const response = await fetch(`${this.baseUrl}/v1/embeddings`, {
@@ -220,14 +252,19 @@ export class SearchService {
     }
 
     // 2. Execute searches in parallel for each type
-    const searchPromises = types.map(type =>
-      this.searchType(type, query, queryEmbedding, {
-        limit: validatedLimit,
-        cursor,
-        userId,
-        includePrivate,
-      })
-    );
+    const searchPromises = types.map(async type => {
+      try {
+        return await this.searchType(type, query, queryEmbedding, {
+          limit: validatedLimit,
+          cursor,
+          userId,
+          includePrivate,
+        });
+      } catch (error) {
+        console.error(`[SearchService] Search type '${type}' failed:`, error);
+        return []; // Return empty array on failure, don't break other searches
+      }
+    });
 
     const results = await Promise.all(searchPromises);
 
@@ -621,30 +658,57 @@ export class SearchService {
     query: string,
     limit: number
   ): Promise<Omit<SearchResultItem, "type" | "searchScore">[]> {
-    // Use the lakebase_bm25 index on search_index table
-    const results = await db.execute(sql`
-      SELECT
-        si.id,
-        si.content_id as "contentId",
-        si.title,
-        si.description,
-        si.author_id as "authorId",
-        si.created_at as "createdAt",
-        si.popularity_score as "popularityScore",
-        si.search_vector <@> to_bm25query(
-          to_tsvector('english', ${query}),
-          'search_index_search_vector_idx'::regclass
-        ) AS score
-      FROM ${schema.searchIndex} si
-      WHERE si.content_type = ${contentType}
-        AND si.search_vector IS NOT NULL
-        AND si.search_vector @@ to_tsquery('english', ${query})
-      ORDER BY score
-      LIMIT ${limit}
-    `);
+    // Try Lakebase BM25 first, fall back to standard PostgreSQL full-text search
+    let results;
+    try {
+      results = await db.execute(sql`
+        SELECT
+          si.id,
+          si.content_id as "contentId",
+          si.title,
+          si.description,
+          si.author_id as "authorId",
+          si.created_at as "createdAt",
+          si.popularity_score as "popularityScore",
+          si.search_vector <@> to_bm25query(
+            to_tsvector('english', ${query}),
+            'search_index_search_vector_idx'::regclass
+          ) AS score
+        FROM ${schema.searchIndex} si
+        WHERE si.content_type = ${contentType}
+          AND si.search_vector IS NOT NULL
+          AND si.search_vector @@ to_tsquery('english', ${query})
+        ORDER BY score
+        LIMIT ${limit}
+      `);
+    } catch (error: any) {
+      // Fallback to standard PostgreSQL full-text search with ts_rank
+      if (error.code === '42883' || error.message?.includes('to_bm25query')) {
+        console.warn('[SearchService] BM25 function not available, falling back to ts_rank');
+        results = await db.execute(sql`
+          SELECT
+            si.id,
+            si.content_id as "contentId",
+            si.title,
+            si.description,
+            si.author_id as "authorId",
+            si.created_at as "createdAt",
+            si.popularity_score as "popularityScore",
+            ts_rank_cd(si.search_vector, to_tsquery('english', ${query})) AS score
+          FROM ${schema.searchIndex} si
+          WHERE si.content_type = ${contentType}
+            AND si.search_vector IS NOT NULL
+            AND si.search_vector @@ to_tsquery('english', ${query})
+          ORDER BY score DESC
+          LIMIT ${limit}
+        `);
+      } else {
+        throw error;
+      }
+    }
 
     return results.rows
-      .filter((row: any) => row.score < 0) // Only matches
+      .filter((row: any) => row.score > 0) // Only matches (ts_rank returns positive)
       .map((row: any) => ({
         id: row.contentId,
         title: row.title || "",
@@ -1063,7 +1127,8 @@ export class SearchService {
   // ---------------------------------------------------------------------------
 
   async generateEmbedding(text: string): Promise<number[]> {
-    return this.embeddingClient.generateEmbedding({ text });
+    const res = await this.embeddingClient.generateEmbedding({ text });
+    return res || [];
   }
 
   async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {

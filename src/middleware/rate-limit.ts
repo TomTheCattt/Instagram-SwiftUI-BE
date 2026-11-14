@@ -60,13 +60,13 @@ export interface RateLimitConfig {
 // ============================================================================
 
 const DEFAULT_TIERS = {
-  anonymous: { name: "anonymous", limit: 60, windowMs: 60 * 1000, burstMultiplier: 2 },      // 60 req/min, 2x burst
-  authenticated: { name: "authenticated", limit: 300, windowMs: 60 * 1000, burstMultiplier: 2 }, // 300 req/min, 2x burst
-  authEndpoints: { name: "authEndpoints", limit: 10, windowMs: 15 * 60 * 1000, burstMultiplier: 1 }, // 10 req/15min (production)
-  uploadEndpoints: { name: "uploadEndpoints", limit: 50, windowMs: 60 * 60 * 1000, burstMultiplier: 1 }, // 50 req/hour
-  searchEndpoints: { name: "searchEndpoints", limit: 30, windowMs: 60 * 1000, burstMultiplier: 2 }, // 30 req/min
-  websocket: { name: "websocket", limit: 100, windowMs: 60 * 1000, burstMultiplier: 2 }, // 100 msg/min
-  admin: { name: "admin", limit: 1000, windowMs: 60 * 1000, burstMultiplier: 5 }, // 1000 req/min
+  anonymous: { name: "anonymous", limit: 600, windowMs: 60 * 1000, burstMultiplier: 2 },       // 600 req/min, 2x burst
+  authenticated: { name: "authenticated", limit: 3000, windowMs: 60 * 1000, burstMultiplier: 2 }, // 3000 req/min, 2x burst
+  authEndpoints: { name: "authEndpoints", limit: 200, windowMs: 15 * 60 * 1000, burstMultiplier: 2 }, // 200 req/15min
+  uploadEndpoints: { name: "uploadEndpoints", limit: 500, windowMs: 60 * 60 * 1000, burstMultiplier: 2 }, // 500 req/hour
+  searchEndpoints: { name: "searchEndpoints", limit: 300, windowMs: 60 * 1000, burstMultiplier: 2 }, // 300 req/min
+  websocket: { name: "websocket", limit: 1000, windowMs: 60 * 1000, burstMultiplier: 2 }, // 1000 msg/min
+  admin: { name: "admin", limit: 10000, windowMs: 60 * 1000, burstMultiplier: 5 }, // 10000 req/min
 };
 
 const DEFAULT_KEY_GENERATORS = {

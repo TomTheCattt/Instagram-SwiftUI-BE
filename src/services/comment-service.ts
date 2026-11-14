@@ -620,28 +620,21 @@ async function incrementCommentsCount(
   commentableId: string
 ): Promise<void> {
   if (commentableType === "STORY") {
-    // Stories use repliesCount instead of commentsCount
     await db
       .update(schema.stories)
       .set({ repliesCount: sql`${schema.stories.repliesCount} + 1` })
       .where(eq(schema.stories.id, commentableId));
-    return;
+  } else if (commentableType === "POST") {
+    await db
+      .update(schema.posts)
+      .set({ commentsCount: sql`${schema.posts.commentsCount} + 1` })
+      .where(eq(schema.posts.id, commentableId));
+  } else if (commentableType === "REEL") {
+    await db
+      .update(schema.reels)
+      .set({ commentsCount: sql`${schema.reels.commentsCount} + 1` })
+      .where(eq(schema.reels.id, commentableId));
   }
-
-  const columnMap = {
-    POST: schema.posts.commentsCount,
-    REEL: schema.reels.commentsCount,
-  };
-  const tableMap = {
-    POST: schema.posts,
-    REEL: schema.reels,
-  };
-  const column = columnMap[commentableType];
-  const table = tableMap[commentableType];
-  await db
-    .update(table)
-    .set({ [column.name]: sql`${column} + 1` })
-    .where(eq(table.id, commentableId));
 }
 
 async function decrementCommentsCount(
@@ -649,26 +642,19 @@ async function decrementCommentsCount(
   commentableId: string
 ): Promise<void> {
   if (commentableType === "STORY") {
-    // Stories use repliesCount instead of commentsCount
     await db
       .update(schema.stories)
       .set({ repliesCount: sql`${schema.stories.repliesCount} - 1` })
       .where(eq(schema.stories.id, commentableId));
-    return;
+  } else if (commentableType === "POST") {
+    await db
+      .update(schema.posts)
+      .set({ commentsCount: sql`${schema.posts.commentsCount} - 1` })
+      .where(eq(schema.posts.id, commentableId));
+  } else if (commentableType === "REEL") {
+    await db
+      .update(schema.reels)
+      .set({ commentsCount: sql`${schema.reels.commentsCount} - 1` })
+      .where(eq(schema.reels.id, commentableId));
   }
-
-  const columnMap = {
-    POST: schema.posts.commentsCount,
-    REEL: schema.reels.commentsCount,
-  };
-  const tableMap = {
-    POST: schema.posts,
-    REEL: schema.reels,
-  };
-  const column = columnMap[commentableType];
-  const table = tableMap[commentableType];
-  await db
-    .update(table)
-    .set({ [column.name]: sql`${column} - 1` })
-    .where(eq(table.id, commentableId));
 }

@@ -270,7 +270,7 @@ export class ReelService {
 
     // If not own profile, only show public reels
     if (targetUserId !== currentUserId) {
-      whereConditions.push(eq(schema.reels.audience, "public"));
+      whereConditions.push(eq(schema.reels.audience, "PUBLIC"));
     }
 
     if (parsedCursor) {
@@ -531,7 +531,7 @@ export class ReelService {
         audioName: input.audioName,
         audioArtist: input.audioArtist,
         isOriginalAudio: input.isOriginalAudio ?? true,
-        audience: input.audience || "public",
+        audience: input.audience || "PUBLIC",
         allowRemix: input.allowRemix ?? true,
         allowDownload: input.allowDownload ?? false,
       })
@@ -1127,7 +1127,7 @@ export class ReelService {
     const whereConditions = [
       eq(schema.reels.audioId, audioId),
       isNull(schema.reels.deletedAt),
-      eq(schema.reels.audience, "public"),
+      eq(schema.reels.audience, "PUBLIC"),
     ];
 
     if (parsedCursor) {
@@ -1235,7 +1235,7 @@ export class ReelService {
         audioName: originalReel.audioName,
         audioArtist: originalReel.audioArtist,
         isOriginalAudio: false,
-        audience: "public",
+        audience: "PUBLIC",
         allowRemix: true,
         allowDownload: false,
       })
@@ -1330,7 +1330,7 @@ export class ReelService {
     const whereConditions = [
       inArray(schema.reels.authorId, followingIds),
       isNull(schema.reels.deletedAt),
-      eq(schema.reels.audience, "public"),
+      eq(schema.reels.audience, "PUBLIC"),
       gte(schema.reels.createdAt, windowStart),
     ];
 
@@ -1475,7 +1475,7 @@ export class ReelService {
 
     const baseWhereConditions = [
       isNull(schema.reels.deletedAt),
-      eq(schema.reels.audience, "public"),
+      eq(schema.reels.audience, "PUBLIC"),
       gte(schema.reels.createdAt, trendingWindow),
     ];
 
@@ -1946,22 +1946,8 @@ export class ReelService {
         )
         .groupBy(schema.reels.authorId),
 
-      // Shares (track via messages with REEL_SHARE)
-      db.select({
-        authorId: schema.reels.authorId,
-        count: sql<number>`count(*)`.as('count'),
-      })
-        .from(schema.messages)
-        .innerJoin(schema.reels, eq(schema.reels.id, sql`${schema.messages.mediaMetadata}->>'reelId'`))
-        .where(
-          and(
-            eq(schema.messages.senderId, this.userId),
-            eq(schema.messages.contentType, "REEL_SHARE"),
-            inArray(sql`${schema.messages.mediaMetadata}->>'reelId'`, authorIds.map(id => `'${id}'`)),
-            gte(schema.messages.createdAt, thirtyDaysAgo)
-          )
-        )
-        .groupBy(schema.reels.authorId),
+      // Shares - not tracked in messages table (no media_metadata column)
+      Promise.resolve([]),
 
       db.select({
         authorId: schema.reels.authorId,

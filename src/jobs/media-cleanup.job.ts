@@ -45,7 +45,7 @@ async function cleanupExpiredPendingUploads(): Promise<{ deletedCount: number; f
       SELECT id, storage_path
       FROM pending_uploads
       WHERE confirmed = false
-        AND created_at < NOW() - INTERVAL '${PENDING_UPLOAD_EXPIRY_HOURS} hours'
+        AND created_at < NOW() - (${PENDING_UPLOAD_EXPIRY_HOURS} * INTERVAL '1 hour')
       LIMIT 1000
     `;
 
@@ -193,7 +193,7 @@ async function cleanupFailedProcessing(): Promise<{ deletedCount: number }> {
     const result = await sql`
       DELETE FROM media_items
       WHERE processing_status = 'failed'
-        AND created_at < NOW() - INTERVAL '${FAILED_PROCESSING_RETENTION_DAYS} days'
+        AND created_at < NOW() - (${FAILED_PROCESSING_RETENTION_DAYS} * INTERVAL '1 day')
       RETURNING id
     `;
 

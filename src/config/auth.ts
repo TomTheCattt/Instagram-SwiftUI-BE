@@ -189,11 +189,11 @@ auth.$context.then((context) => {
   // Bug in core: signInEmail compares account.accountId === userRecord.user.id (email vs userId)
   // Workaround: Transform credential account's accountId to user.id so core's comparison works
   const originalFindUserByEmail = internalAdapter.findUserByEmail;
-  internalAdapter.findUserByEmail = async (email: string, options?: { includeAccounts?: boolean }) => {
+  internalAdapter.findUserByEmail = (async (email: string, options?: { includeAccounts?: boolean }) => {
     console.log("[Better Auth] findUserByEmail called with email:", email, "options:", options);
     // Use base adapter with join to fetch user and accounts in one query
     const adapter = context.adapter;
-    const userWithAccounts = await adapter.findOne({
+    const userWithAccounts: any = await adapter.findOne({
       model: "user",
       where: [{ field: "email", operator: "eq", value: email }],
       join: { account: true },
@@ -205,14 +205,14 @@ auth.$context.then((context) => {
     }
 
     // Extract accounts from the joined result
-    const accounts = userWithAccounts.account || [];
+    const accounts = (userWithAccounts.account || []) as any[];
     // Remove the account field from user object
     const { account, ...user } = userWithAccounts;
 
     // WORKAROUND for Better Auth v1.7.17 bug:
     // Core's signInEmail does: accounts.find(a => a.providerId === 'credential' && a.accountId === user.id)
     // But accountId is email, not user.id. Transform credential account's accountId to user.id.
-    const transformedAccounts = accounts.map(acc => {
+    const transformedAccounts = accounts.map((acc: any) => {
       if (acc.providerId === "credential") {
         return { ...acc, accountId: user.id };
       }
@@ -221,7 +221,7 @@ auth.$context.then((context) => {
 
     console.log("[Better Auth] findUserByEmail result:", { user: !!user, accounts: transformedAccounts.length });
     return { user, accounts: transformedAccounts };
-  };
+  }) as any;
 
   console.log("[Better Auth] Patched internalAdapter.findCredentialAccount and findUserByEmail");
 });

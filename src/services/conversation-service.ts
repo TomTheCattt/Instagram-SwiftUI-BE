@@ -602,21 +602,23 @@ export class ConversationService {
       throw new HTTPException(403, { message: "Not a member of this conversation" });
     }
 
+    const now = new Date();
     await db
       .update(schema.conversationMembers)
-      .set({ lastReadAt: new Date() })
+      .set({ lastReadAt: now, lastDeliveredAt: now })
       .where(and(
         eq(schema.conversationMembers.conversationId, conversationId),
         eq(schema.conversationMembers.userId, userId)
       ));
 
-    // Also update lastDeliveredAt
+    // Update incoming messages from others to READ
     await db
-      .update(schema.conversationMembers)
-      .set({ lastDeliveredAt: new Date() })
+      .update(schema.messages)
+      .set({ status: "READ" })
       .where(and(
-        eq(schema.conversationMembers.conversationId, conversationId),
-        eq(schema.conversationMembers.userId, userId)
+        eq(schema.messages.conversationId, conversationId),
+        sql`${schema.messages.senderId} != ${userId}`,
+        sql`${schema.messages.status} IN ('SENT', 'DELIVERED')`
       ));
 
     return { success: true };

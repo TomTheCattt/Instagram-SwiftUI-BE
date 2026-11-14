@@ -24,7 +24,15 @@ async function refreshFeedMaterializedView(): Promise<void> {
 
   try {
     const sql = neon(env.DATABASE_URL);
-    await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY feed_items`;
+    try {
+      await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY feed_items`;
+    } catch (err: any) {
+      if (err?.code === '55000' || err?.message?.includes('concurrently')) {
+        await sql`REFRESH MATERIALIZED VIEW feed_items`;
+      } else {
+        throw err;
+      }
+    }
     const duration = Date.now() - startTime;
     console.log(`[FeedRefresh] Completed in ${duration}ms`);
   } catch (error) {
