@@ -152,7 +152,12 @@ async function checkBruteForce(identifier: string, ip: string): Promise<{ allowe
       return { allowed: true, attempts: 0 };
     }
 
-    const record: BruteForceRecord = JSON.parse(result);
+    let record: BruteForceRecord;
+    try {
+      record = typeof result === "string" ? JSON.parse(result) : (result as any);
+    } catch {
+      return { allowed: true, attempts: 0 };
+    }
     const now = Date.now();
 
     // Check if lockout has expired

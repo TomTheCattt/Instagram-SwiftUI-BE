@@ -308,7 +308,7 @@ tusRouter.delete("/:id", async (c) => {
   // Set TUS response headers
   c.header("Tus-Resumable", "1.0.0");
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================================

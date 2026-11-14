@@ -594,7 +594,7 @@ uploadRouter.delete("/tus/:id", async (c) => {
     throw new HTTPException(404, { message: "Upload not found" });
   }
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/upload/pending/:id - Get pending upload status
@@ -646,7 +646,7 @@ uploadRouter.delete("/pending/:id", async (c) => {
   // Delete record
   await db.delete(schema.pendingUploads).where(eq(schema.pendingUploads.id, pendingUploadId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 export { uploadRouter };

@@ -166,7 +166,7 @@ notificationRouter.post("/read-all", async (c) => {
     .set({ isRead: true, readAt: new Date() })
     .where(and(eq(schema.notifications.recipientId, user.id), eq(schema.notifications.isRead, false)));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/notifications/mark-read - Mark multiple as read
@@ -182,7 +182,7 @@ notificationRouter.post("/mark-read", zValidator("json", markReadSchema), async 
       inArray(schema.notifications.id, ids)
     ));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/notifications/:id/read - Mark one as read
@@ -207,7 +207,7 @@ notificationRouter.post("/:id/read", async (c) => {
     .set({ isRead: true, readAt: new Date() })
     .where(eq(schema.notifications.id, notificationId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/notifications/:id - Dismiss notification
@@ -231,7 +231,7 @@ notificationRouter.delete("/:id", async (c) => {
     .delete(schema.notifications)
     .where(eq(schema.notifications.id, notificationId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -487,7 +487,7 @@ notificationRouter.delete("/device-tokens/:token", async (c) => {
 
   await pushNotificationService.updateDeviceToken(token, { isActive: false });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================

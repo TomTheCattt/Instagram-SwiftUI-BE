@@ -27,9 +27,10 @@ const replySchema = z.object({
 });
 
 const commentSchema = z.object({
-  text: z.string().min(1).max(1000),
-  parentId: z.string().uuid().optional(),
-});
+  text: z.string().min(1).max(1000).optional(),
+  content: z.string().min(1).max(1000).optional(),
+  parentId: z.string().optional(),
+}).refine((d) => d.text || d.content, { message: "text or content is required" });
 
 const reportSchema = z.object({
   reason: z.string(),
@@ -98,7 +99,7 @@ storyRouter.post("/:storyId/view", async (c) => {
 
   await storyService.markAsViewed(storyId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/stories/:storyId/views - Get story viewers (author only)
@@ -143,7 +144,7 @@ storyRouter.delete("/:storyId", async (c) => {
 
   await storyService.deleteStory(storyId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/stories/:id/comments - Get story comments
@@ -216,7 +217,9 @@ storyRouter.get("/:id/comments", async (c) => {
 storyRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) => {
   const user = getCurrentUser(c);
   const storyId = c.req.param("id");
-  const { text, parentId } = c.req.valid("json");
+  const body = c.req.valid("json");
+  const text = body.text || body.content || "";
+  const { parentId } = body;
 
   const story = await db.query.stories.findFirst({ where: eq(schema.stories.id, storyId), columns: { id: true, authorId: true } });
   if (!story) throw new HTTPException(404, { message: "Story not found" });
@@ -312,7 +315,7 @@ storyRouter.delete("/:id/comments/:commentId", async (c) => {
 
   await db.delete(schema.comments).where(eq(schema.comments.id, commentId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/stories/:storyId/report - Report a story

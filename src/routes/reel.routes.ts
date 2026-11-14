@@ -18,7 +18,7 @@ const createReelSchema = z.object({
   audioArtist: z.string().max(200).optional(),
   audioCoverUrl: z.string().url().optional(),
   isOriginalAudio: z.boolean().default(true),
-  audience: z.enum(["public", "followers", "close_friends"]).default("public"),
+  audience: z.enum(["PUBLIC", "FOLLOWERS", "CLOSE_FRIENDS"]).default("PUBLIC"),
   allowRemix: z.boolean().default(true),
   allowDownload: z.boolean().default(false),
 });
@@ -172,7 +172,7 @@ reelRouter.delete("/:id", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.deleteReel(reelId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -187,7 +187,7 @@ reelRouter.post("/:id/like", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.likeReel(reelId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/reels/:id/like - Unlike reel
@@ -198,7 +198,7 @@ reelRouter.delete("/:id/like", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.unlikeReel(reelId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/reels/:id/save - Save reel
@@ -210,7 +210,7 @@ reelRouter.post("/:id/save", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.saveReel(reelId, user.id, collectionId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/reels/:id/save - Unsave reel
@@ -221,7 +221,7 @@ reelRouter.delete("/:id/save", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.unsaveReel(reelId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/reels/:id/share - Share reel to DM
@@ -233,7 +233,7 @@ reelRouter.post("/:id/share", zValidator("json", z.object({ conversationId: z.st
   const reelService = createReelService(user.id);
   await reelService.shareReel(reelId, user.id, conversationId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/reels/:id/view - Increment view count
@@ -243,7 +243,7 @@ reelRouter.post("/:id/view", async (c) => {
   const reelService = createReelService(""); // No user needed for view increment
   await reelService.incrementViews(reelId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/reels/:id/play - Increment play count
@@ -253,7 +253,7 @@ reelRouter.post("/:id/play", async (c) => {
   const reelService = createReelService("");
   await reelService.incrementPlays(reelId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/reels/:id/likes - Get users who liked a reel
@@ -357,10 +357,22 @@ reelRouter.get("/:reelId/comments", async (c) => {
 });
 
 // POST /v1/reels/:reelId/comments - Add reel comment
-reelRouter.post("/:reelId/comments", zValidator("json", z.object({ text: z.string().min(1).max(1000), parentId: z.string().uuid().optional() })), async (c) => {
-  const user = getCurrentUser(c);
-  const reelId = c.req.param("reelId");
-  const { text, parentId } = c.req.valid("json");
+reelRouter.post(
+  "/:reelId/comments",
+  zValidator(
+    "json",
+    z.object({
+      text: z.string().min(1).max(1000).optional(),
+      content: z.string().min(1).max(1000).optional(),
+      parentId: z.string().optional(),
+    }).refine((d) => d.text || d.content, { message: "text or content is required" })
+  ),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const reelId = c.req.param("reelId");
+    const body = c.req.valid("json");
+    const text = body.text || body.content || "";
+    const { parentId } = body;
 
   const reel = await db.query.reels.findFirst({ where: eq(schema.reels.id, reelId) });
   if (!reel) {
@@ -436,7 +448,7 @@ reelRouter.delete("/:reelId/comments/:commentId", async (c) => {
   // Decrement comments count on reel
   await db.update(schema.reels).set({ commentsCount: sql`${schema.reels.commentsCount} - 1` }).where(eq(schema.reels.id, reelId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -452,7 +464,7 @@ reelRouter.post("/:id/report", zValidator("json", reportReelSchema), async (c) =
   const reelService = createReelService(user.id);
   await reelService.reportReel(reelId, user.id, reason, description);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -544,7 +556,7 @@ reelRouter.post("/audio/:audioId/save", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.saveAudio(audioId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/reels/audio/:audioId/save - Unsave audio track
@@ -555,7 +567,7 @@ reelRouter.delete("/audio/:audioId/save", async (c) => {
   const reelService = createReelService(user.id);
   await reelService.unsaveAudio(audioId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/reels/audio/saved - Get user's saved audio tracks

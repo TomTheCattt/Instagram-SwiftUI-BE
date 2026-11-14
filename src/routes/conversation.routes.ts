@@ -10,7 +10,7 @@ import { conversationService } from "../services/conversation-service";
 import { messageService } from "../services/message-service";
 
 const createConversationSchema = z.object({
-  participantIds: z.array(z.string().uuid()).min(1).max(50),
+  participantIds: z.array(z.string()).min(1).max(50),
   groupName: z.string().max(100).optional(),
   groupAvatar: z.string().url().optional(),
 });
@@ -26,8 +26,8 @@ const sendMessageSchema = z.object({
   mediaThumbnail: z.string().url().optional(),
   mediaDuration: z.number().optional(),
   mediaMetadata: z.record(z.any()).optional(),
-  referenceId: z.string().uuid().optional(),
-  replyToId: z.string().uuid().optional(),
+  referenceId: z.string().optional(),
+  replyToId: z.string().optional(),
   isEphemeral: z.boolean().optional(),
   expiresAt: z.string().datetime().optional(),
 });
@@ -49,7 +49,7 @@ const muteSchema = z.object({
 });
 
 const addMembersSchema = z.object({
-  userIds: z.array(z.string().uuid()).min(1).max(50),
+  userIds: z.array(z.string()).min(1).max(50),
 });
 
 const updateGroupSchema = z.object({
@@ -58,7 +58,7 @@ const updateGroupSchema = z.object({
 });
 
 const blockUserSchema = z.object({
-  targetUserId: z.string().uuid(),
+  targetUserId: z.string(),
 });
 
 const reportSchema = z.object({
@@ -207,7 +207,7 @@ conversationRouter.put("/:id", zValidator("json", updateGroupSchema), async (c) 
     .set(updateData)
     .where(eq(schema.conversations.id, conversationId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/conversations/:id/mute - Mute/unmute conversation
@@ -218,7 +218,7 @@ conversationRouter.post("/:id/mute", zValidator("json", muteSchema), async (c) =
 
   await conversationService.setMute(conversationId, user.id, mute);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/conversations/:id/leave - Leave group conversation
@@ -228,7 +228,7 @@ conversationRouter.post("/:id/leave", async (c) => {
 
   await conversationService.leaveConversation(conversationId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/conversations/:id/block - Block user in conversation
@@ -239,7 +239,7 @@ conversationRouter.post("/:id/block", zValidator("json", blockUserSchema), async
 
   await conversationService.blockUserInConversation(conversationId, user.id, targetUserId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/conversations/:id/report - Report conversation
@@ -250,7 +250,7 @@ conversationRouter.post("/:id/report", zValidator("json", reportSchema), async (
 
   await conversationService.reportConversation(conversationId, user.id, reason, description);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/conversations/:id/read - Mark as read
@@ -260,7 +260,7 @@ conversationRouter.post("/:id/read", async (c) => {
 
   await conversationService.markAsRead(conversationId, user.id);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -286,18 +286,18 @@ conversationRouter.delete("/:id/members/:userId", async (c) => {
 
   await conversationService.removeMember(conversationId, user.id, targetUserId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // PUT /v1/conversations/:id/owner - Transfer group ownership
-conversationRouter.put("/:id/owner", zValidator("json", z.object({ newOwnerId: z.string().uuid() })), async (c) => {
+conversationRouter.put("/:id/owner", zValidator("json", z.object({ newOwnerId: z.string() })), async (c) => {
   const user = getCurrentUser(c);
   const conversationId = c.req.param("id");
   const { newOwnerId } = c.req.valid("json");
 
   await conversationService.transferOwnership(conversationId, user.id, newOwnerId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -436,7 +436,7 @@ conversationRouter.delete("/messages/:id", zValidator("json", unsendMessageSchem
     forEveryone,
   });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/messages/:id/reaction - Add reaction
@@ -502,7 +502,7 @@ conversationRouter.post("/messages/:id/read", async (c) => {
 
   await messageService.markMessagesRead(message.conversationId, user.id, message.id.toString());
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/messages/:id/delivered - Mark message as delivered
@@ -520,7 +520,7 @@ conversationRouter.post("/messages/:id/delivered", async (c) => {
 
   await messageService.markMessagesDelivered(message.conversationId, user.id, message.id.toString());
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/messages/:id/thread - Get message thread (replies)
@@ -539,8 +539,8 @@ conversationRouter.get("/messages/:id/thread", async (c) => {
 
 // POST /v1/messages/forward - Forward messages
 conversationRouter.post("/messages/forward", zValidator("json", z.object({
-  messageIds: z.array(z.string().uuid()).min(1).max(10),
-  conversationId: z.string().uuid(),
+  messageIds: z.array(z.string()).min(1).max(10),
+  conversationId: z.string(),
 })), async (c) => {
   const user = getCurrentUser(c);
   const { messageIds, conversationId } = c.req.valid("json");

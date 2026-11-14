@@ -4,8 +4,9 @@ import { z } from "zod";
 import { authMiddleware, getCurrentUser } from "../middleware/auth";
 import { db } from "../db/client";
 import * as schema from "../db/schema";
-import { eq, and, or, desc, asc, ilike, count, notExists, inArray, not, sql } from "drizzle-orm";
+import { eq, and, or, desc, asc, ilike, count, notExists, inArray, not, sql, isNull, lt } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
+import { createReelService } from "../services/reel-service";
 
 // Validation schemas
 const profileSchema = z.object({
@@ -42,7 +43,7 @@ const userSettingsSchema = z.object({
 });
 
 const closeFriendsSchema = z.object({
-  friendIds: z.array(z.string().uuid()).max(100),
+  friendIds: z.array(z.string()).max(100),
 });
 
 const paginationSchema = z.object({
@@ -162,7 +163,7 @@ userRouter.post("/me/device-token", zValidator("json", deviceSchema), async (c) 
       set: { platform, expiresAt },
     });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/user/me/device-token - Unregister device token
@@ -174,7 +175,7 @@ userRouter.delete("/me/device-token", zValidator("json", tokenSchema), async (c)
     .delete(schema.deviceTokens)
     .where(and(eq(schema.deviceTokens.userId, user.id), eq(schema.deviceTokens.token, token)));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // GET /v1/users/search - Search users
@@ -480,7 +481,7 @@ userRouter.put("/me/close-friends", zValidator("json", closeFriendsSchema), asyn
     );
   }
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================
@@ -535,7 +536,7 @@ userRouter.delete("/me", async (c) => {
     metadata: { gdpr_compliant: true },
   });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // PATCH /v1/user/me/username - Change username with history tracking
@@ -735,7 +736,7 @@ userRouter.post("/:id/restrict", async (c) => {
     resourceId: targetId,
   });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/users/:id/restrict - Unrestrict user
@@ -763,12 +764,53 @@ userRouter.delete("/:id/restrict", async (c) => {
     resourceId: targetId,
   });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================
-// ACCEPT FOLLOW REQUEST (for private accounts)
+// FOLLOW REQUESTS (for private accounts)
 // ============================================
+
+// GET /v1/user/follow-requests - List pending follow requests for the authenticated user
+userRouter.get("/follow-requests", async (c) => {
+  const user = getCurrentUser(c);
+  const { page, perPage, offset } = getPagination(c);
+
+  const [requests, total] = await Promise.all([
+    db
+      .select({
+        id: schema.follows.id,
+        requesterId: schema.users.id,
+        username: schema.users.username,
+        fullName: schema.users.fullName,
+        avatarUrl: schema.users.avatarUrl,
+        isVerified: schema.users.isVerified,
+        bio: schema.users.bio,
+        createdAt: schema.follows.createdAt,
+      })
+      .from(schema.follows)
+      .innerJoin(schema.users, eq(schema.users.id, schema.follows.followerId))
+      .where(and(eq(schema.follows.followingId, user.id), eq(schema.follows.status, "PENDING")))
+      .limit(perPage)
+      .offset(offset)
+      .orderBy(desc(schema.follows.createdAt)),
+    db
+      .select({ count: count() })
+      .from(schema.follows)
+      .where(and(eq(schema.follows.followingId, user.id), eq(schema.follows.status, "PENDING"))),
+  ]);
+
+  return c.json({
+    success: true,
+    data: {
+      items: requests,
+      page,
+      perPage,
+      total: total[0]?.count || 0,
+      hasMore: page * perPage < (total[0]?.count || 0),
+    },
+  });
+});
 
 // POST /v1/users/:id/accept - Accept follow request
 userRouter.post("/:id/accept", async (c) => {
@@ -821,9 +863,34 @@ userRouter.post("/:id/accept", async (c) => {
     newValues: { requesterId, status: "ACCEPTED" },
   });
 
-  // TODO: Send notification to requester (follow_accept)
+  return c.json({ success: true, message: "Follow request accepted" });
+});
 
-  return c.status(204);
+// POST /v1/users/:id/decline - Decline/reject follow request
+userRouter.post("/:id/decline", async (c) => {
+  const user = getCurrentUser(c);
+  const requesterId = c.req.param("id");
+
+  const pendingFollow = await db.query.follows.findFirst({
+    where: and(
+      eq(schema.follows.followerId, requesterId),
+      eq(schema.follows.followingId, user.id),
+      eq(schema.follows.status, "PENDING")
+    ),
+  });
+
+  if (!pendingFollow) {
+    throw new HTTPException(404, {
+      message: "No pending follow request from this user",
+      res: c.json({ success: false, error: "NO_PENDING_REQUEST", message: "No pending follow request from this user" }),
+    });
+  }
+
+  await db
+    .delete(schema.follows)
+    .where(and(eq(schema.follows.followerId, requesterId), eq(schema.follows.followingId, user.id)));
+
+  return c.json({ success: true, message: "Follow request declined" });
 });
 
 // ============================================
@@ -843,26 +910,47 @@ userRouter.get("/:id/followers", async (c) => {
         username: schema.users.username,
         fullName: schema.users.fullName,
         avatarUrl: schema.users.avatarUrl,
+        bio: schema.users.bio,
         isVerified: schema.users.isVerified,
         isPrivate: schema.users.isPrivate,
         followedAt: schema.follows.createdAt,
       })
       .from(schema.follows)
       .innerJoin(schema.users, eq(schema.users.id, schema.follows.followerId))
-      .where(eq(schema.follows.followingId, targetId))
+      .where(and(eq(schema.follows.followingId, targetId), eq(schema.follows.status, "ACCEPTED")))
       .limit(perPage)
       .offset(offset)
       .orderBy(desc(schema.follows.createdAt)),
     db
       .select({ count: count() })
       .from(schema.follows)
-      .where(eq(schema.follows.followingId, targetId)),
+      .where(and(eq(schema.follows.followingId, targetId), eq(schema.follows.status, "ACCEPTED"))),
   ]);
+
+  // Check if current user follows each follower in the list
+  const userIds = followers.map((f) => f.id);
+  let followedSet = new Set<string>();
+  if (user && userIds.length > 0) {
+    const myFollows = await db
+      .select({ followingId: schema.follows.followingId })
+      .from(schema.follows)
+      .where(
+        and(
+          eq(schema.follows.followerId, user.id),
+          inArray(schema.follows.followingId, userIds),
+          eq(schema.follows.status, "ACCEPTED")
+        )
+      );
+    followedSet = new Set(myFollows.map((f) => f.followingId));
+  }
 
   return c.json({
     success: true,
     data: {
-      items: followers,
+      items: followers.map((f) => ({
+        ...f,
+        isFollowing: user ? (user.id === f.id ? null : followedSet.has(f.id)) : false,
+      })),
       page,
       perPage,
       total: total[0]?.count || 0,
@@ -884,26 +972,52 @@ userRouter.get("/:id/following", async (c) => {
         username: schema.users.username,
         fullName: schema.users.fullName,
         avatarUrl: schema.users.avatarUrl,
+        bio: schema.users.bio,
         isVerified: schema.users.isVerified,
         isPrivate: schema.users.isPrivate,
         followedAt: schema.follows.createdAt,
       })
       .from(schema.follows)
       .innerJoin(schema.users, eq(schema.users.id, schema.follows.followingId))
-      .where(eq(schema.follows.followerId, targetId))
+      .where(and(eq(schema.follows.followerId, targetId), eq(schema.follows.status, "ACCEPTED")))
       .limit(perPage)
       .offset(offset)
       .orderBy(desc(schema.follows.createdAt)),
     db
       .select({ count: count() })
       .from(schema.follows)
-      .where(eq(schema.follows.followerId, targetId)),
+      .where(and(eq(schema.follows.followerId, targetId), eq(schema.follows.status, "ACCEPTED"))),
   ]);
+
+  // Check if current user follows each person in the following list
+  const userIds = following.map((f) => f.id);
+  let followedSet = new Set<string>();
+  if (user && userIds.length > 0) {
+    if (user.id === targetId) {
+      // Viewing my own following list: all are true
+      followedSet = new Set(userIds);
+    } else {
+      const myFollows = await db
+        .select({ followingId: schema.follows.followingId })
+        .from(schema.follows)
+        .where(
+          and(
+            eq(schema.follows.followerId, user.id),
+            inArray(schema.follows.followingId, userIds),
+            eq(schema.follows.status, "ACCEPTED")
+          )
+        );
+      followedSet = new Set(myFollows.map((f) => f.followingId));
+    }
+  }
 
   return c.json({
     success: true,
     data: {
-      items: following,
+      items: following.map((f) => ({
+        ...f,
+        isFollowing: user ? (user.id === f.id ? null : followedSet.has(f.id)) : false,
+      })),
       page,
       perPage,
       total: total[0]?.count || 0,
@@ -985,7 +1099,7 @@ userRouter.post("/:id/follow", async (c) => {
     })
     .where(eq(schema.users.id, targetId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/users/:id/follow - Unfollow user
@@ -1020,7 +1134,7 @@ userRouter.delete("/:id/follow", async (c) => {
     })
     .where(eq(schema.users.id, targetId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // POST /v1/users/:id/block - Block user
@@ -1075,7 +1189,7 @@ userRouter.post("/:id/block", async (c) => {
       )
     );
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // DELETE /v1/users/:id/block - Unblock user
@@ -1095,7 +1209,108 @@ userRouter.delete("/:id/block", async (c) => {
     });
   }
 
-  return c.status(204);
+  return c.body(null, 204);
+});
+
+// GET /v1/users/:id/posts - User posts grid (alias for FE convenience)
+userRouter.get("/:id/posts", async (c) => {
+  const user = getCurrentUser(c);
+  const targetId = c.req.param("id");
+  const cursor = c.req.query("cursor");
+  const perPage = Math.min(Number(c.req.query("perPage")) || 20, 50);
+
+  const targetUser = await db.query.users.findFirst({
+    where: eq(schema.users.id, targetId),
+    columns: { id: true, isPrivate: true, username: true }
+  });
+
+  if (!targetUser) throw new HTTPException(404, { message: "User not found" });
+
+  // Check private account access
+  if (targetUser.isPrivate && targetId !== user.id) {
+    const following = await db.query.follows.findFirst({
+      where: and(
+        eq(schema.follows.followerId, user.id),
+        eq(schema.follows.followingId, targetId),
+        eq(schema.follows.status, "ACCEPTED")
+      )
+    });
+    if (!following) throw new HTTPException(403, { message: "This account is private" });
+  }
+
+  const whereConditions = [
+    eq(schema.posts.authorId, targetId),
+    isNull(schema.posts.deletedAt),
+    isNull(schema.posts.archivedAt),
+  ];
+
+  if (cursor) {
+    whereConditions.push(lt(schema.posts.createdAt, new Date(cursor)));
+  }
+
+  const postsList = await db
+    .select({
+      id: schema.posts.id,
+      authorId: schema.posts.authorId,
+      caption: schema.posts.caption,
+      locationName: schema.posts.locationName,
+      locationLat: schema.posts.locationLat,
+      locationLng: schema.posts.locationLng,
+      likesCount: schema.posts.likesCount,
+      commentsCount: schema.posts.commentsCount,
+      sharesCount: schema.posts.sharesCount,
+      savesCount: schema.posts.savesCount,
+      viewsCount: schema.posts.viewsCount,
+      isSponsored: schema.posts.isSponsored,
+      sponsorUserId: schema.posts.sponsorUserId,
+      audience: schema.posts.audience,
+      closeFriendsOnly: schema.posts.closeFriendsOnly,
+      createdAt: schema.posts.createdAt,
+      updatedAt: schema.posts.updatedAt,
+      author: {
+        id: schema.users.id,
+        username: schema.users.username,
+        fullName: schema.users.fullName,
+        avatarUrl: schema.users.avatarUrl,
+        isVerified: schema.users.isVerified,
+      },
+      mediaItems: sql`(SELECT json_agg(json_build_object('id', mi.id, 'url', mi.url, 'thumbnailUrl', mi.thumbnail_url, 'type', mi.type, 'width', mi.width, 'height', mi.height, 'duration', mi.duration, 'sortOrder', mi.sort_order) ORDER BY mi.sort_order) FROM media_items mi WHERE mi.mediaable_type = 'post' AND mi.mediaable_id = posts.id)`,
+    })
+    .from(schema.posts)
+    .innerJoin(schema.users, eq(schema.users.id, schema.posts.authorId))
+    .where(and(...whereConditions))
+    .limit(perPage + 1)
+    .orderBy(desc(schema.posts.createdAt));
+
+  const hasMore = postsList.length > perPage;
+  const items = hasMore ? postsList.slice(0, perPage) : postsList;
+  const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].createdAt.toISOString() : null;
+
+  return c.json({
+    success: true,
+    data: {
+      items,
+      nextCursor,
+      hasMore,
+      user: targetUser
+    }
+  });
+});
+
+// GET /v1/users/:id/reels - User reels grid (alias for FE convenience)
+userRouter.get("/:id/reels", async (c) => {
+  const user = getCurrentUser(c);
+  const targetId = c.req.param("id");
+  const cursor = c.req.query("cursor");
+  const perPage = Math.min(Number(c.req.query("perPage")) || 20, 50);
+
+  const reelService = createReelService(user.id);
+  const result = await reelService.getUserReels(targetId, cursor, perPage, user.id);
+
+  return c.json({
+    success: true,
+    data: result,
+  });
 });
 
 // GET /v1/users/:id - Public profile (catch-all, must be last)

@@ -114,6 +114,33 @@ callRouter.post("/", zValidator("json", createCallSchema), async (c) => {
   }
 });
 
+// GET /v1/calls/history - Get call history for current user
+// IMPORTANT: Must be defined BEFORE /:id route to avoid route matching conflict
+callRouter.get("/history", async (c) => {
+  const user = getCurrentUser(c);
+  const { page, perPage } = getPagination(c);
+  const type = c.req.query("type");
+  const status = c.req.query("status");
+
+  try {
+    const result = await callService.getCallHistory({
+      userId: user.id,
+      page,
+      perPage,
+      type: type as any,
+      status: status as any,
+    });
+
+    return c.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("[CallRoutes] Get call history error:", error);
+    throw new HTTPException(500, { message: "Failed to get call history" });
+  }
+});
+
 // GET /v1/calls/:id - Get call details
 callRouter.get("/:id", async (c) => {
   const user = getCurrentUser(c);
@@ -173,7 +200,7 @@ callRouter.post("/:id/leave", zValidator("json", leaveCallSchema), async (c) => 
   try {
     await callService.leaveCall({ callId, userId: user.id, reason });
 
-    return c.status(204);
+    return c.body(null, 204);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     console.error("[CallRoutes] Leave call error:", error);
@@ -190,7 +217,7 @@ callRouter.post("/:id/end", zValidator("json", endCallSchema), async (c) => {
   try {
     await callService.endCall({ callId, userId: user.id, reason });
 
-    return c.status(204);
+    return c.body(null, 204);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     console.error("[CallRoutes] End call error:", error);
@@ -207,7 +234,7 @@ callRouter.post("/:id/invite", zValidator("json", inviteParticipantsSchema), asy
   try {
     await callService.inviteParticipants({ callId, userId: user.id, participantIds });
 
-    return c.status(204);
+    return c.body(null, 204);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     console.error("[CallRoutes] Invite participants error:", error);
@@ -224,7 +251,7 @@ callRouter.post("/:id/kick", zValidator("json", kickParticipantSchema), async (c
   try {
     await callService.kickParticipant({ callId, userId: user.id, targetUserId, reason });
 
-    return c.status(204);
+    return c.body(null, 204);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     console.error("[CallRoutes] Kick participant error:", error);
@@ -252,7 +279,7 @@ callRouter.post(
         isScreenShare,
       });
 
-      return c.status(204);
+      return c.body(null, 204);
     } catch (error) {
       if (error instanceof HTTPException) throw error;
       console.error("[CallRoutes] Update participant error:", error);
@@ -270,7 +297,7 @@ callRouter.post("/:id/host/transfer", zValidator("json", transferHostSchema), as
   try {
     await callService.transferHost({ callId, userId: user.id, newHostId });
 
-    return c.status(204);
+    return c.body(null, 204);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     console.error("[CallRoutes] Transfer host error:", error);
@@ -281,32 +308,6 @@ callRouter.post("/:id/host/transfer", zValidator("json", transferHostSchema), as
 // ============================================================
 // CALL HISTORY & RECORDINGS
 // ============================================================
-
-// GET /v1/calls/history - Get call history for current user
-callRouter.get("/history", async (c) => {
-  const user = getCurrentUser(c);
-  const { page, perPage } = getPagination(c);
-  const type = c.req.query("type");
-  const status = c.req.query("status");
-
-  try {
-    const result = await callService.getCallHistory({
-      userId: user.id,
-      page,
-      perPage,
-      type: type as any,
-      status: status as any,
-    });
-
-    return c.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    console.error("[CallRoutes] Get call history error:", error);
-    throw new HTTPException(500, { message: "Failed to get call history" });
-  }
-});
 
 // GET /v1/calls/:id/recording - Get call recording
 callRouter.get("/:id/recording", async (c) => {
@@ -343,7 +344,7 @@ callRouter.post("/:id/quality", zValidator("json", qualityMetricsSchema), async 
       ...input,
     });
 
-    return c.status(204);
+    return c.body(null, 204);
   } catch (error) {
     console.error("[CallRoutes] Record quality metrics error:", error);
     throw new HTTPException(500, { message: "Failed to record quality metrics" });

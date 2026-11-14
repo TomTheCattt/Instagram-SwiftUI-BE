@@ -28,13 +28,13 @@ const createReportSchema = z.object({
     "OTHER",
   ]),
   description: z.string().max(1000).optional(),
-  postId: z.string().uuid().optional(),
-  commentId: z.string().uuid().optional(),
-  reelId: z.string().uuid().optional(),
-  storyId: z.string().uuid().optional(),
-  userId: z.string().uuid().optional(),
-  messageId: z.string().uuid().optional(),
-  audioId: z.string().uuid().optional(),
+  postId: z.string().optional(),
+  commentId: z.string().optional(),
+  reelId: z.string().optional(),
+  storyId: z.string().optional(),
+  userId: z.string().optional(),
+  messageId: z.string().optional(),
+  audioId: z.string().optional(),
 });
 
 const reportQuerySchema = z.object({

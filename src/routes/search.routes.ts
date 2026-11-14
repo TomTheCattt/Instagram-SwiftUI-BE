@@ -78,6 +78,113 @@ export const searchRoutes = new Hono()
     }
   )
 
+  // GET /v1/search/top - Top search results
+  .get(
+    "/top",
+    zValidator("query", searchQuerySchema),
+    async (c) => {
+      const user = c.get("user");
+      const { q, limit, cursor } = c.req.valid("query");
+      const searchService = getSearchService();
+      const results = await searchService.search(q, {
+        limit,
+        cursor,
+        userId: user.id,
+      });
+      return c.json({
+        query: q,
+        type: "top",
+        results: results.items,
+        pagination: {
+          nextCursor: results.nextCursor,
+          hasMore: results.hasMore,
+        },
+        tookMs: results.tookMs,
+      });
+    }
+  )
+
+  // GET /v1/search/users - Search users only
+  .get(
+    "/users",
+    zValidator("query", searchQuerySchema),
+    async (c) => {
+      const user = c.get("user");
+      const { q, limit, cursor } = c.req.valid("query");
+      const searchService = getSearchService();
+      const results = await searchService.search(q, {
+        types: ["users"],
+        limit,
+        cursor,
+        userId: user.id,
+      });
+      return c.json({
+        query: q,
+        type: "users",
+        results: results.items,
+        pagination: {
+          nextCursor: results.nextCursor,
+          hasMore: results.hasMore,
+        },
+        tookMs: results.tookMs,
+      });
+    }
+  )
+
+  // GET /v1/search/tags - Search hashtags
+  .get(
+    "/tags",
+    zValidator("query", searchQuerySchema),
+    async (c) => {
+      const user = c.get("user");
+      const { q, limit, cursor } = c.req.valid("query");
+      const searchService = getSearchService();
+      const results = await searchService.search(q, {
+        types: ["hashtags"],
+        limit,
+        cursor,
+        userId: user.id,
+      });
+      return c.json({
+        query: q,
+        type: "hashtags",
+        results: results.items,
+        pagination: {
+          nextCursor: results.nextCursor,
+          hasMore: results.hasMore,
+        },
+        tookMs: results.tookMs,
+      });
+    }
+  )
+
+  // GET /v1/search/posts - Search posts
+  .get(
+    "/posts",
+    zValidator("query", searchQuerySchema),
+    async (c) => {
+      const user = c.get("user");
+      const { q, limit, cursor } = c.req.valid("query");
+      const searchService = getSearchService();
+      const results = await searchService.search(q, {
+        types: ["posts"],
+        limit,
+        cursor,
+        userId: user.id,
+      });
+      return c.json({
+        query: q,
+        type: "posts",
+        results: results.items,
+        pagination: {
+          nextCursor: results.nextCursor,
+          hasMore: results.hasMore,
+        },
+        tookMs: results.tookMs,
+      });
+    }
+  )
+
   // GET /v1/search/suggestions - Typeahead suggestions
   .get(
     "/suggestions",

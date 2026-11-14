@@ -57,8 +57,11 @@ const updatePostSchema = z.object({
 });
 
 const commentSchema = z.object({
-  text: z.string().min(1).max(1000),
-  parentId: z.string().uuid().optional(),
+  text: z.string().min(1).max(1000).optional(),
+  content: z.string().min(1).max(1000).optional(),
+  parentId: z.string().optional(),
+}).refine((data) => data.text || data.content, {
+  message: "text or content is required",
 });
 
 const reportSchema = z.object({
@@ -103,48 +106,72 @@ postRouter.get("/feed", async (c) => {
   const feedService = createFeedService(user.id);
   const result = await feedService.getFeed(cursor, perPage);
 
+  // Fetch media items for all posts in the feed
+  const postIds = result.items.map((item) => item.postId);
+  const mediaItems = postIds.length > 0
+    ? await db.query.mediaItems.findMany({
+        where: and(
+          eq(schema.mediaItems.mediaableType, "post"),
+          inArray(schema.mediaItems.mediaableId, postIds)
+        ),
+        orderBy: asc(schema.mediaItems.sortOrder),
+      })
+    : [];
+
+  // Group media items by post ID
+  const mediaByPostId = new Map<string, typeof mediaItems>();
+  for (const media of mediaItems) {
+    if (!mediaByPostId.has(media.mediaableId)) {
+      mediaByPostId.set(media.mediaableId, []);
+    }
+    mediaByPostId.get(media.mediaableId)!.push(media);
+  }
+
   return c.json({
     success: true,
     data: {
-      items: result.items.map((item) => ({
-        id: item.postId,
-        authorId: item.authorId,
-        caption: item.caption,
-        locationName: item.locationName,
-        locationLat: item.locationLat,
-        locationLng: item.locationLng,
-        likesCount: item.likesCount,
-        commentsCount: item.commentsCount,
-        sharesCount: item.sharesCount,
-        savesCount: item.savesCount,
-        viewsCount: item.viewsCount,
-        isSponsored: item.isSponsored,
-        sponsorUserId: item.sponsorUserId,
-        audience: item.audience,
-        closeFriendsOnly: item.closeFriendsOnly,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        author: {
-          id: item.authorId,
-          username: item.username,
-          fullName: item.fullName,
-          avatarUrl: item.avatarUrl,
-          isVerified: item.isVerified,
-          isPrivate: item.isPrivate,
-        },
-        mediaItems: item.mediaUrl ? [{
+      items: result.items.map((item) => {
+        const postMediaItems = mediaByPostId.get(item.postId) || [];
+        return {
           id: item.postId,
-          url: item.mediaUrl,
-          thumbnailUrl: item.thumbnailUrl,
-          type: item.mediaType,
-          width: item.width,
-          height: item.height,
-          duration: item.duration ? parseFloat(item.duration) : null,
-          sortOrder: item.sortOrder,
-        }] : [],
-        isLiked: false,
-        isSaved: false,
-      })),
+          authorId: item.authorId,
+          caption: item.caption,
+          locationName: item.locationName,
+          locationLat: item.locationLat,
+          locationLng: item.locationLng,
+          likesCount: item.likesCount,
+          commentsCount: item.commentsCount,
+          sharesCount: item.sharesCount,
+          savesCount: item.savesCount,
+          viewsCount: item.viewsCount,
+          isSponsored: item.isSponsored,
+          sponsorUserId: item.sponsorUserId,
+          audience: item.audience,
+          closeFriendsOnly: item.closeFriendsOnly,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          author: {
+            id: item.authorId,
+            username: item.username,
+            fullName: item.fullName,
+            avatarUrl: item.avatarUrl,
+            isVerified: item.isVerified,
+            isPrivate: item.isPrivate,
+          },
+          mediaItems: postMediaItems.map((mi) => ({
+            id: mi.id,
+            url: mi.url,
+            thumbnailUrl: mi.thumbnailUrl,
+            type: mi.type,
+            width: mi.width,
+            height: mi.height,
+            duration: mi.duration ? parseFloat(mi.duration) : null,
+            sortOrder: mi.sortOrder,
+          })),
+          isLiked: false,
+          isSaved: false,
+        };
+      }),
       nextCursor: result.nextCursor ? feedService.getCursorString(result.nextCursor) : null,
       hasMore: result.hasMore,
     },
@@ -162,50 +189,74 @@ postRouter.get("/explore", async (c) => {
   const exploreService = createExploreService(user.id);
   const result = await exploreService.getExploreFeed(cursor, perPage);
 
+  // Fetch media items for all posts in the explore feed
+  const postIds = result.items.map((item) => item.postId);
+  const mediaItems = postIds.length > 0
+    ? await db.query.mediaItems.findMany({
+        where: and(
+          eq(schema.mediaItems.mediaableType, "post"),
+          inArray(schema.mediaItems.mediaableId, postIds)
+        ),
+        orderBy: asc(schema.mediaItems.sortOrder),
+      })
+    : [];
+
+  // Group media items by post ID
+  const mediaByPostId = new Map<string, typeof mediaItems>();
+  for (const media of mediaItems) {
+    if (!mediaByPostId.has(media.mediaableId)) {
+      mediaByPostId.set(media.mediaableId, []);
+    }
+    mediaByPostId.get(media.mediaableId)!.push(media);
+  }
+
   return c.json({
     success: true,
     data: {
-      items: result.items.map((item) => ({
-        id: item.postId,
-        authorId: item.authorId,
-        caption: item.caption,
-        locationName: item.locationName,
-        locationLat: item.locationLat,
-        locationLng: item.locationLng,
-        likesCount: item.likesCount,
-        commentsCount: item.commentsCount,
-        sharesCount: item.sharesCount,
-        savesCount: item.savesCount,
-        viewsCount: item.viewsCount,
-        isSponsored: item.isSponsored,
-        sponsorUserId: item.sponsorUserId,
-        audience: item.audience,
-        closeFriendsOnly: item.closeFriendsOnly,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        author: {
-          id: item.authorId,
-          username: item.username,
-          fullName: item.fullName,
-          avatarUrl: item.avatarUrl,
-          isVerified: item.isVerified,
-          isPrivate: item.isPrivate,
-        },
-        mediaItems: item.mediaUrl ? [{
+      items: result.items.map((item) => {
+        const postMediaItems = mediaByPostId.get(item.postId) || [];
+        return {
           id: item.postId,
-          url: item.mediaUrl,
-          thumbnailUrl: item.thumbnailUrl,
-          type: item.mediaType,
-          width: item.width,
-          height: item.height,
-          duration: item.duration ? parseFloat(item.duration) : null,
-          sortOrder: item.sortOrder,
-        }] : [],
-        isLiked: false,
-        isSaved: false,
-        exploreSource: item.source,
-        exploreReason: item.reason,
-      })),
+          authorId: item.authorId,
+          caption: item.caption,
+          locationName: item.locationName,
+          locationLat: item.locationLat,
+          locationLng: item.locationLng,
+          likesCount: item.likesCount,
+          commentsCount: item.commentsCount,
+          sharesCount: item.sharesCount,
+          savesCount: item.savesCount,
+          viewsCount: item.viewsCount,
+          isSponsored: item.isSponsored,
+          sponsorUserId: item.sponsorUserId,
+          audience: item.audience,
+          closeFriendsOnly: item.closeFriendsOnly,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          author: {
+            id: item.authorId,
+            username: item.username,
+            fullName: item.fullName,
+            avatarUrl: item.avatarUrl,
+            isVerified: item.isVerified,
+            isPrivate: item.isPrivate,
+          },
+          mediaItems: postMediaItems.map((mi) => ({
+            id: mi.id,
+            url: mi.url,
+            thumbnailUrl: mi.thumbnailUrl,
+            type: mi.type,
+            width: mi.width,
+            height: mi.height,
+            duration: mi.duration ? parseFloat(mi.duration) : null,
+            sortOrder: mi.sortOrder,
+          })),
+          isLiked: false,
+          isSaved: false,
+          exploreSource: item.source,
+          exploreReason: item.reason,
+        };
+      }),
       nextCursor: result.nextCursor ? exploreService.getCursorString(result.nextCursor) : null,
       hasMore: result.hasMore,
       sections: result.sections,
@@ -575,7 +626,7 @@ postRouter.delete("/:id", async (c) => {
     .set({ postsCount: sql`${schema.users.postsCount} - 1` })
     .where(eq(schema.users.id, user.id));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.post("/:id/archive", async (c) => {
@@ -590,7 +641,7 @@ postRouter.post("/:id/archive", async (c) => {
     .set({ archivedAt: new Date() })
     .where(eq(schema.posts.id, postId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.delete("/:id/archive", async (c) => {
@@ -605,7 +656,7 @@ postRouter.delete("/:id/archive", async (c) => {
     .set({ archivedAt: null })
     .where(eq(schema.posts.id, postId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -654,7 +705,7 @@ postRouter.post("/:id/like", async (c) => {
     });
   }
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.delete("/:id/like", async (c) => {
@@ -671,7 +722,7 @@ postRouter.delete("/:id/like", async (c) => {
     .set({ likesCount: sql`${schema.posts.likesCount} - 1` })
     .where(eq(schema.posts.id, postId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.get("/:id/likes", async (c) => {
@@ -728,7 +779,7 @@ postRouter.post("/:id/save", async (c) => {
     .set({ savesCount: sql`${schema.posts.savesCount} + 1` })
     .where(eq(schema.posts.id, postId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.delete("/:id/save", async (c) => {
@@ -742,7 +793,7 @@ postRouter.delete("/:id/save", async (c) => {
     .set({ savesCount: sql`${schema.posts.savesCount} - 1` })
     .where(eq(schema.posts.id, postId));
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -765,7 +816,7 @@ postRouter.post("/:id/report", zValidator("json", reportSchema), async (c) => {
     description,
   });
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 // ============================================================
@@ -816,7 +867,9 @@ postRouter.get("/:id/comments", async (c) => {
 postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) => {
   const user = getCurrentUser(c);
   const postId = c.req.param("id");
-  const { text, parentId } = c.req.valid("json");
+  const body = c.req.valid("json");
+  const commentText = body.text || body.content || "";
+  const { parentId } = body;
 
   const post = await db.query.posts.findFirst({
     where: eq(schema.posts.id, postId),
@@ -845,7 +898,7 @@ postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) =>
     commentableType: "POST",
     commentableId: postId,
     authorId: user.id,
-    text,
+    text: commentText,
     parentId,
   });
 
@@ -856,7 +909,7 @@ postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) =>
       type: "COMMENT",
       referenceType: "post",
       referenceId: postId,
-      previewText: text.substring(0, 100),
+      previewText: commentText.substring(0, 100),
       deepLink: `/posts/${postId}`,
       groupKey: `comment:post:${postId}`,
     });
@@ -873,7 +926,7 @@ postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) =>
         type: "COMMENT",
         referenceType: "post",
         referenceId: postId,
-        previewText: text.substring(0, 100),
+        previewText: commentText.substring(0, 100),
         deepLink: `/posts/${postId}`,
         groupKey: `comment:post:${postId}`,
       });
@@ -896,7 +949,7 @@ postRouter.delete("/:id/comments/:commentId", async (c) => {
 
   await deleteComment(commentId, user.id, post.authorId);
 
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.patch("/comments/:commentId", zValidator("json", z.object({ text: z.string().min(1).max(2000) })), async (c) => {
@@ -913,7 +966,7 @@ postRouter.post("/comments/:commentId/like", async (c) => {
   const commentId = c.req.param("commentId");
 
   await likeComment(commentId, user.id);
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.delete("/comments/:commentId/like", async (c) => {
@@ -921,7 +974,7 @@ postRouter.delete("/comments/:commentId/like", async (c) => {
   const commentId = c.req.param("commentId");
 
   await unlikeComment(commentId, user.id);
-  return c.status(204);
+  return c.body(null, 204);
 });
 
 postRouter.post("/comments/:commentId/report", zValidator("json", reportSchema), async (c) => {
