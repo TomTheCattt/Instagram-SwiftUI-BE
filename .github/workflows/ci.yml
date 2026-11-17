@@ -304,6 +304,14 @@ jobs:
           CORS_ORIGIN: http://localhost:3000
           LOG_LEVEL: error
 
+      - name: Check can-i-deploy (local broker)
+        run: |
+          pact broker can-i-deploy \
+            --pacticipant=instagram-backend \
+            --version=${{ github.sha }} \
+            --broker-base-url=http://localhost:9292 \
+            --latest=true
+
       - name: Upload Pact verification results
         if: always()
         uses: actions/upload-artifact@v4
@@ -321,20 +329,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Pact CLI
-        run: npm install -g @pact-foundation/pact-cli
-
       - name: Check if provider can be deployed
         run: |
-          pact-broker can-i-deploy \
-            --pacticipant=instagram-backend \
-            --version=${{ github.sha }} \
-            --broker-base-url=${{ secrets.PACT_BROKER_URL }} \
-            --broker-username=${{ secrets.PACT_BROKER_USERNAME }} \
-            --broker-password=${{ secrets.PACT_BROKER_PASSWORD }} \
-            --latest=true \
-            --retry-while-unknown=60 \
+          if [ -z "${{ secrets.PACT_BROKER_URL }}" ]; then
+            echo "ℹ️ PACT_BROKER_URL secret is not configured."
+            echo "✅ Contract verification and can-i-deploy checks have already passed in the contract-test job."
+            exit 0
+          fi
+
+          npm install -g @pact-foundation/pact-cli
+
+          CMD=(
+            pact broker can-i-deploy
+            --pacticipant=instagram-backend
+            --version="${{ github.sha }}"
+            --broker-base-url="${{ secrets.PACT_BROKER_URL }}"
+            --latest=true
+            --retry-while-unknown=60
             --retry-interval=10
+          )
+
+          if [ -n "${{ secrets.PACT_BROKER_USERNAME }}" ]; then
+            CMD+=(--broker-username="${{ secrets.PACT_BROKER_USERNAME }}")
+          fi
+          if [ -n "${{ secrets.PACT_BROKER_PASSWORD }}" ]; then
+            CMD+=(--broker-password="${{ secrets.PACT_BROKER_PASSWORD }}")
+          fi
+
+          "${CMD[@]}"
 
   build:
     name: Build

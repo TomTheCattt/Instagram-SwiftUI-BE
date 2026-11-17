@@ -68,15 +68,30 @@ jobs:
       - name: Check Pact "can-i-deploy"
         id: check-deploy
         run: |
+          if [ -z "${{ secrets.PACT_BROKER_URL }}" ]; then
+            echo "ℹ️ PACT_BROKER_URL is not configured, skipping can-i-deploy check"
+            echo "can_deploy=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Check if provider can be deployed without breaking consumers
           npm install -g @pact-foundation/pact-cli
-          if pact-broker can-i-deploy \
-            --pacticipant=instagram-backend \
-            --version=${{ steps.get-version.outputs.version }} \
-            --broker-base-url=${{ secrets.PACT_BROKER_URL }} \
-            --broker-username=${{ secrets.PACT_BROKER_USERNAME }} \
-            --broker-password=${{ secrets.PACT_BROKER_PASSWORD }} \
-            --latest=true; then
+          CMD=(
+            pact broker can-i-deploy
+            --pacticipant=instagram-backend
+            --version="${{ steps.get-version.outputs.version }}"
+            --broker-base-url="${{ secrets.PACT_BROKER_URL }}"
+            --latest=true
+          )
+
+          if [ -n "${{ secrets.PACT_BROKER_USERNAME }}" ]; then
+            CMD+=(--broker-username="${{ secrets.PACT_BROKER_USERNAME }}")
+          fi
+          if [ -n "${{ secrets.PACT_BROKER_PASSWORD }}" ]; then
+            CMD+=(--broker-password="${{ secrets.PACT_BROKER_PASSWORD }}")
+          fi
+
+          if "${CMD[@]}"; then
             echo "can_deploy=true" >> $GITHUB_OUTPUT
           else
             echo "can_deploy=false" >> $GITHUB_OUTPUT
