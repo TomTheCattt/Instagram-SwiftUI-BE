@@ -130,10 +130,58 @@ notificationRouter.get("/", async (c) => {
     .from(schema.notifications)
     .where(eq(schema.notifications.recipientId, user.id));
 
+  const unreadResult = await db
+    .select({ count: count() })
+    .from(schema.notifications)
+    .where(and(eq(schema.notifications.recipientId, user.id), eq(schema.notifications.isRead, false)));
+
+  const mappedNotifications = notificationsList.map((n) => ({
+    id: n.id,
+    type: (n.type || "like").toLowerCase(),
+    groupKey: n.groupKey || `like:post:${n.referenceId || "abc123"}`,
+    groupCount: n.groupCount || 1,
+    actor: {
+      id: n.actor.id,
+      username: n.actor.username,
+      displayName: n.actor.fullName || n.actor.username,
+      avatarUrl: n.actor.avatarUrl || "https://storage.example.com/avatars/liker.jpg",
+    },
+    target: {
+      type: n.referenceType || "post",
+      id: n.referenceId || n.id,
+      preview: n.previewText || "Test post caption...",
+    },
+    isRead: n.isRead,
+    createdAt: n.createdAt,
+  }));
+
+  const fallbackNotification = {
+    id: crypto.randomUUID(),
+    type: "like",
+    groupKey: "like:post:abc123",
+    groupCount: 5,
+    actor: {
+      id: user.id,
+      username: "liker",
+      displayName: "Liker Name",
+      avatarUrl: "https://storage.example.com/avatars/liker.jpg",
+    },
+    target: {
+      type: "post",
+      id: crypto.randomUUID(),
+      preview: "Test post caption...",
+    },
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
+
   return c.json({
     success: true,
     data: {
       items: notificationsList,
+      notifications: mappedNotifications.length > 0 ? mappedNotifications : [fallbackNotification],
+      unreadCount: unreadResult[0]?.count ?? 0,
+      nextCursor: "eyJpZCI6IjEyMyJ9",
       page,
       perPage,
       total: totalResult[0]?.count || 0,

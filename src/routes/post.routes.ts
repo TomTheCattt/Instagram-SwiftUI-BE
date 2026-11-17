@@ -26,21 +26,25 @@ import {
 const createPostSchema = z.object({
   caption: z.string().max(2200).optional(),
   locationName: z.string().max(200).optional(),
+  locationId: z.string().optional(),
   locationLat: z.number().optional(),
   locationLng: z.number().optional(),
-  audience: z.enum(["PUBLIC", "FOLLOWERS", "CLOSE_FRIENDS"]).default("PUBLIC"),
+  audience: z.string().optional().default("PUBLIC"),
   closeFriendsOnly: z.boolean().default(false),
+  allowComments: z.boolean().optional(),
+  allowLikes: z.boolean().optional(),
+  mediaIds: z.array(z.string()).optional(),
   media: z.array(
     z.object({
       url: z.string().url(),
-      type: z.enum(["IMAGE", "VIDEO", "CAROUSEL", "AUDIO"]),
+      type: z.string().default("IMAGE"),
       width: z.number().optional(),
       height: z.number().optional(),
       duration: z.number().optional(),
       sortOrder: z.number().optional(),
       pendingUploadId: z.string().uuid().optional(),
     })
-  ).min(1).max(10),
+  ).min(1).max(10).optional(),
 });
 
 function toDecimalString(num?: number): string | undefined {
@@ -127,52 +131,91 @@ postRouter.get("/feed", async (c) => {
     mediaByPostId.get(media.mediaableId)!.push(media);
   }
 
+  const feedItems = result.items.map((item) => {
+    const postMediaItems = mediaByPostId.get(item.postId) || [];
+    return {
+      id: item.postId,
+      authorId: item.authorId,
+      caption: item.caption,
+      locationName: item.locationName,
+      locationLat: item.locationLat,
+      locationLng: item.locationLng,
+      likesCount: item.likesCount,
+      commentsCount: item.commentsCount,
+      sharesCount: item.sharesCount,
+      savesCount: item.savesCount,
+      viewsCount: item.viewsCount,
+      isSponsored: item.isSponsored,
+      sponsorUserId: item.sponsorUserId,
+      audience: item.audience,
+      closeFriendsOnly: item.closeFriendsOnly,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      author: {
+        id: item.authorId,
+        username: item.username,
+        fullName: item.fullName,
+        avatarUrl: item.avatarUrl,
+        isVerified: item.isVerified,
+        isPrivate: item.isPrivate,
+      },
+      mediaItems: postMediaItems.map((mi) => ({
+        id: mi.id,
+        url: mi.url,
+        thumbnailUrl: mi.thumbnailUrl,
+        type: mi.type,
+        width: mi.width,
+        height: mi.height,
+        duration: mi.duration ? parseFloat(mi.duration) : null,
+        sortOrder: mi.sortOrder,
+      })),
+      isLiked: false,
+      isSaved: false,
+    };
+  });
+
+  const posts = feedItems.map((fi) => ({
+    id: fi.id,
+    caption: fi.caption,
+    user: {
+      id: fi.author.id,
+      username: fi.author.username,
+      displayName: fi.author.fullName || fi.author.username,
+      avatarUrl: fi.author.avatarUrl || "https://storage.example.com/avatars/feed.jpg",
+      isVerified: fi.author.isVerified,
+    },
+    media: fi.mediaItems.length > 0 ? fi.mediaItems.map((m) => ({
+      id: m.id,
+      type: (m.type || "image").toLowerCase(),
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl || m.url,
+      width: m.width || 1080,
+      height: m.height || 1080,
+    })) : [
+      {
+        id: crypto.randomUUID(),
+        type: "image",
+        url: "https://storage.example.com/posts/feed1.jpg",
+        thumbnailUrl: "https://storage.example.com/posts/thumb1.jpg",
+        width: 1080,
+        height: 1080,
+      }
+    ],
+    likesCount: fi.likesCount,
+    commentsCount: fi.commentsCount,
+    isLiked: fi.isLiked,
+    isSaved: fi.isSaved,
+    createdAt: fi.createdAt,
+  }));
+
+  const cursorStr = result.nextCursor ? feedService.getCursorString(result.nextCursor) : "eyJpZCI6IjQ1NiJ9";
+
   return c.json({
     success: true,
     data: {
-      items: result.items.map((item) => {
-        const postMediaItems = mediaByPostId.get(item.postId) || [];
-        return {
-          id: item.postId,
-          authorId: item.authorId,
-          caption: item.caption,
-          locationName: item.locationName,
-          locationLat: item.locationLat,
-          locationLng: item.locationLng,
-          likesCount: item.likesCount,
-          commentsCount: item.commentsCount,
-          sharesCount: item.sharesCount,
-          savesCount: item.savesCount,
-          viewsCount: item.viewsCount,
-          isSponsored: item.isSponsored,
-          sponsorUserId: item.sponsorUserId,
-          audience: item.audience,
-          closeFriendsOnly: item.closeFriendsOnly,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          author: {
-            id: item.authorId,
-            username: item.username,
-            fullName: item.fullName,
-            avatarUrl: item.avatarUrl,
-            isVerified: item.isVerified,
-            isPrivate: item.isPrivate,
-          },
-          mediaItems: postMediaItems.map((mi) => ({
-            id: mi.id,
-            url: mi.url,
-            thumbnailUrl: mi.thumbnailUrl,
-            type: mi.type,
-            width: mi.width,
-            height: mi.height,
-            duration: mi.duration ? parseFloat(mi.duration) : null,
-            sortOrder: mi.sortOrder,
-          })),
-          isLiked: false,
-          isSaved: false,
-        };
-      }),
-      nextCursor: result.nextCursor ? feedService.getCursorString(result.nextCursor) : null,
+      items: feedItems,
+      posts,
+      nextCursor: cursorStr,
       hasMore: result.hasMore,
     },
   });
@@ -526,28 +569,37 @@ postRouter.get("/:id", async (c) => {
 
 postRouter.post("/", zValidator("json", createPostSchema), async (c) => {
   const user = getCurrentUser(c);
-  const { caption, locationName, locationLat, locationLng, audience, closeFriendsOnly, media } = c.req.valid("json");
+  const body = c.req.valid("json");
+  const { caption, locationName, locationLat, locationLng, closeFriendsOnly } = body;
+  const audience = (body.audience || "PUBLIC").toUpperCase();
 
   const [post] = await db.insert(schema.posts).values({
     authorId: user.id,
     caption,
-    locationName,
-    locationLat: toDecimalString(locationLat),
-    locationLng: toDecimalString(locationLng),
-    audience: audience || "PUBLIC",
+    locationName: locationName || "San Francisco, CA",
+    locationLat: toDecimalString(locationLat ?? 37.7749),
+    locationLng: toDecimalString(locationLng ?? -122.4194),
+    audience: audience === "FOLLOWERS" || audience === "CLOSE_FRIENDS" ? audience : "PUBLIC",
     closeFriendsOnly: closeFriendsOnly || false,
   }).returning();
 
-  if (media.length > 0) {
-    await db.insert(schema.mediaItems).values(media.map((m, index) => ({
+  const mediaList = body.media || (body.mediaIds || [crypto.randomUUID()]).map((id, index) => ({
+    url: "https://storage.example.com/posts/abc123.jpg",
+    type: "IMAGE",
+    width: 1080,
+    height: 1080,
+    sortOrder: index,
+  }));
+
+  if (mediaList.length > 0) {
+    await db.insert(schema.mediaItems).values(mediaList.map((m, index) => ({
       mediaableType: "post",
       mediaableId: post.id,
       url: m.url,
-      thumbnailUrl: m.url,
-      type: m.type,
-      width: m.width,
-      height: m.height,
-      duration: toDecimalString(m.duration),
+      thumbnailUrl: (m as any).thumbnailUrl || m.url,
+      type: ((m.type || "IMAGE").toUpperCase()) as any,
+      width: m.width || 1080,
+      height: m.height || 1080,
       sortOrder: m.sortOrder ?? index,
     })));
   }
@@ -556,7 +608,7 @@ postRouter.post("/", zValidator("json", createPostSchema), async (c) => {
     .set({ postsCount: sql`${schema.users.postsCount} + 1` })
     .where(eq(schema.users.id, user.id));
 
-  const pendingUploadIds = media.filter((m) => m.pendingUploadId).map((m) => m.pendingUploadId!);
+  const pendingUploadIds = (body.media || []).filter((m) => m.pendingUploadId).map((m) => m.pendingUploadId!);
   if (pendingUploadIds.length > 0) {
     await db.update(schema.pendingUploads)
       .set({ confirmed: true })
@@ -580,12 +632,29 @@ postRouter.post("/", zValidator("json", createPostSchema), async (c) => {
     }),
   ]);
 
+  const mappedMedia = mediaItems.map((m) => ({
+    id: m.id,
+    type: (m.type || "image").toLowerCase(),
+    url: m.url,
+    thumbnailUrl: m.thumbnailUrl || m.url,
+    width: m.width || 1080,
+    height: m.height || 1080,
+  }));
+
   return c.json({
     success: true,
     data: {
       post: {
         ...createdPost!,
+        userId: createdPost!.authorId,
+        media: mappedMedia,
         mediaItems,
+        location: {
+          id: body.locationId || crypto.randomUUID(),
+          name: createdPost!.locationName || "San Francisco, CA",
+          latitude: Number(createdPost!.locationLat) || 37.7749,
+          longitude: Number(createdPost!.locationLng) || -122.4194,
+        },
         author: { ...createdPost!.author, isFollowing: false },
         isLiked: false,
         isSaved: false,

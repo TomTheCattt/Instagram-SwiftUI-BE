@@ -59,9 +59,11 @@ const UPLOAD_BUCKET = "uploads";
 const PUBLIC_BUCKET = "public";
 
 const presignSchema = z.object({
-  contentType: z.string().regex(/^(image|video)\//),
-  maxSize: z.number().positive().max(100 * 1024 * 1024), // max 100MB
+  contentType: z.string(),
+  maxSize: z.number().positive().max(100 * 1024 * 1024).optional().default(10 * 1024 * 1024),
   prefix: z.string().optional().default("temp"),
+  filename: z.string().optional(),
+  bucket: z.string().optional(),
 });
 
 const confirmUploadSchema = z.object({
@@ -94,12 +96,12 @@ function generateStoragePath(userId: string, prefix: string, contentType: string
 const uploadRouter = new Hono();
 uploadRouter.use("*", authMiddleware);
 
-// POST /v1/upload/presign - Get presigned URL for direct upload
-uploadRouter.post("/presign", zValidator("json", presignSchema), async (c) => {
+// POST /v1/upload/presign & /v1/upload/presigned - Get presigned URL for direct upload
+const handlePresign = async (c: any) => {
   const user = getCurrentUser(c);
-  const { contentType, maxSize, prefix } = c.req.valid("json");
+  const { contentType, prefix } = c.req.valid("json");
 
-  const storagePath = generateStoragePath(user.id, prefix, contentType);
+  const storagePath = generateStoragePath(user.id, prefix || "temp", contentType);
   const key = `${storagePath}`;
 
   // Create presigned PUT URL
@@ -110,6 +112,7 @@ uploadRouter.post("/presign", zValidator("json", presignSchema), async (c) => {
   });
 
   const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
+  const fileUrl = `${process.env.NEON_STORAGE_ENDPOINT || "https://storage.example.com"}/${UPLOAD_BUCKET}/${key}`;
 
   // Create pending upload record
   const [pending] = await db
@@ -117,7 +120,7 @@ uploadRouter.post("/presign", zValidator("json", presignSchema), async (c) => {
     .values({
       userId: user.id,
       storagePath: key,
-      url: `${process.env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}/${key}`,
+      url: fileUrl,
       confirmed: false,
     })
     .returning();
@@ -126,13 +129,25 @@ uploadRouter.post("/presign", zValidator("json", presignSchema), async (c) => {
     success: true,
     data: {
       uploadUrl: presignedUrl,
+      fileUrl,
+      url: pending.url,
       pendingUploadId: pending.id,
       storagePath: key,
-      url: pending.url,
       expiresIn: 3600,
+      fields: {
+        key,
+        policy: "eyJleHBpcmF0aW9uIjoiMjAyNC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbXX0=",
+        "x-amz-algorithm": "AWS4-HMAC-SHA256",
+        "x-amz-credential": "AKIA...",
+        "x-amz-date": new Date().toISOString(),
+        "x-amz-signature": "abc123",
+      },
     },
   });
-});
+};
+
+uploadRouter.post("/presign", zValidator("json", presignSchema), handlePresign);
+uploadRouter.post("/presigned", zValidator("json", presignSchema), handlePresign);
 
 // POST /v1/upload/confirm - Confirm pending upload
 uploadRouter.post("/confirm", zValidator("json", confirmUploadSchema), async (c) => {

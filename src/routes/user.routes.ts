@@ -11,6 +11,7 @@ import { createReelService } from "../services/reel-service";
 // Validation schemas
 const profileSchema = z.object({
   fullName: z.string().trim().min(1).max(100).optional(),
+  displayName: z.string().trim().min(1).max(100).optional(),
   bio: z.string().trim().max(150).nullable().optional(),
   website: z.string().url().max(250).nullable().optional(),
   isPrivate: z.boolean().optional(),
@@ -87,9 +88,11 @@ userRouter.get("/me", async (c) => {
         id: user.id,
         username: user.username,
         fullName: user.fullName,
+        displayName: user.fullName || user.username,
         email: user.email,
         phone: user.phone,
-        avatarUrl: user.avatarUrl,
+        avatarUrl: user.avatarUrl || "https://storage.example.com/avatars/default.png",
+        bannerUrl: null,
         bio: user.bio,
         website: user.website,
         isVerified: user.isVerified,
@@ -98,6 +101,7 @@ userRouter.get("/me", async (c) => {
         followersCount: user.followersCount,
         followingCount: user.followingCount,
         createdAt: user.createdAt,
+        updatedAt: user.updatedAt || user.createdAt,
         isFollowing: false,
         isFollowedBy: false,
       },
@@ -105,15 +109,19 @@ userRouter.get("/me", async (c) => {
   });
 });
 
-// PUT /v1/user/me - Full profile update
-userRouter.put("/me", zValidator("json", profileSchema), async (c) => {
+const handleUpdateProfile = async (c: any) => {
   const user = getCurrentUser(c);
   const data = c.req.valid("json");
+  const updateData: any = { ...data };
+  if (data.displayName && !data.fullName) {
+    updateData.fullName = data.displayName;
+  }
+  delete updateData.displayName;
 
   const [updated] = await db
     .update(schema.users)
     .set({
-      ...data,
+      ...updateData,
       updatedAt: new Date(),
     })
     .where(eq(schema.users.id, user.id))
@@ -126,9 +134,11 @@ userRouter.put("/me", zValidator("json", profileSchema), async (c) => {
         id: updated.id,
         username: updated.username,
         fullName: updated.fullName,
+        displayName: updated.fullName || updated.username,
         email: updated.email,
         phone: updated.phone,
-        avatarUrl: updated.avatarUrl,
+        avatarUrl: updated.avatarUrl || "https://storage.example.com/avatars/default.png",
+        bannerUrl: null,
         bio: updated.bio,
         website: updated.website,
         isVerified: updated.isVerified,
@@ -137,10 +147,15 @@ userRouter.put("/me", zValidator("json", profileSchema), async (c) => {
         followersCount: updated.followersCount,
         followingCount: updated.followingCount,
         createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
       },
     },
   });
-});
+};
+
+// PUT & PATCH /v1/user/me - Profile update
+userRouter.put("/me", zValidator("json", profileSchema), handleUpdateProfile);
+userRouter.patch("/me", zValidator("json", profileSchema), handleUpdateProfile);
 
 // POST /v1/user/me/device-token - Register device token
 userRouter.post("/me/device-token", zValidator("json", deviceSchema), async (c) => {

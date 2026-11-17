@@ -29,8 +29,11 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_.]+$/),
-  fullName: z.string().min(1).max(100),
+  fullName: z.string().min(1).max(100).optional(),
+  displayName: z.string().min(1).max(100).optional(),
   phone: z.string().optional(),
+}).refine((data) => data.fullName || data.displayName, {
+  message: "fullName or displayName is required",
 });
 
 const loginSchema = z.object({
@@ -409,7 +412,10 @@ authRouter.post(
     const userAgent = c.req.header("user-agent") || "unknown";
 
     try {
-      const { email, password, username, fullName, phone } = c.req.valid("json");
+      const json = c.req.valid("json");
+      const { email, password, username, phone } = json;
+      const fullName = json.fullName || json.displayName || username;
+      const displayName = json.displayName || fullName;
 
       // Validate password strength
       const passwordValidation = validatePasswordStrength(password);
@@ -512,9 +518,10 @@ authRouter.post(
             id: user.id,
             username: user.username,
             fullName: user.fullName,
+            displayName: user.fullName || user.username,
             email: user.email,
             phone: user.phone,
-            avatarUrl: user.avatarUrl,
+            avatarUrl: user.avatarUrl || "https://storage.example.com/avatars/default.png",
             bio: user.bio,
             website: user.website,
             isVerified: user.isVerified,
@@ -527,9 +534,10 @@ authRouter.post(
             id: result.user.id,
             username,
             fullName,
+            displayName,
             email: result.user.email,
             phone,
-            avatarUrl: result.user.image,
+            avatarUrl: result.user.image || "https://storage.example.com/avatars/default.png",
             bio: null,
             website: null,
             isVerified: result.user.emailVerified,
@@ -541,6 +549,8 @@ authRouter.post(
           },
           accessToken: result.token,
           refreshToken,
+          expiresIn: 3600,
+          tokenType: "Bearer",
           expiresAt: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
         },
       }, 201);
@@ -653,9 +663,10 @@ authRouter.post(
             id: user.id,
             username: user.username,
             fullName: user.fullName,
+            displayName: user.fullName || user.username,
             email: user.email,
             phone: user.phone,
-            avatarUrl: user.avatarUrl,
+            avatarUrl: user.avatarUrl || "https://storage.example.com/avatars/default.png",
             bio: user.bio,
             website: user.website,
             isVerified: user.isVerified,
@@ -668,9 +679,10 @@ authRouter.post(
             id: result.user.id,
             username: result.user.name,
             fullName: result.user.name,
+            displayName: result.user.name,
             email: result.user.email,
             phone: null,
-            avatarUrl: result.user.image,
+            avatarUrl: result.user.image || "https://storage.example.com/avatars/default.png",
             bio: null,
             website: null,
             isVerified: result.user.emailVerified,
@@ -682,6 +694,8 @@ authRouter.post(
           },
           accessToken: sessionToken,
           refreshToken,
+          expiresIn: 3600,
+          tokenType: "Bearer",
           expiresAt,
         },
       });
@@ -1296,6 +1310,8 @@ authRouter.post(
         data: {
           accessToken: storedToken.session.token,
           refreshToken: newRefreshToken,
+          expiresIn: 3600,
+          tokenType: "Bearer",
           expiresAt: expiresAtUnix,
         },
       });
