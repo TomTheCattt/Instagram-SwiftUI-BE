@@ -1,28 +1,28 @@
-CREATE TYPE "public"."call_participant_status" AS ENUM('INVITED', 'RINGING', 'JOINING', 'CONNECTED', 'RECONNECTING', 'LEFT', 'DECLINED', 'FAILED');--> statement-breakpoint
-CREATE TYPE "public"."call_status" AS ENUM('INITIATED', 'RINGING', 'CONNECTING', 'ACTIVE', 'ENDED', 'MISSED', 'DECLINED', 'FAILED');--> statement-breakpoint
-CREATE TYPE "public"."call_type" AS ENUM('AUDIO', 'VIDEO', 'GROUP_AUDIO', 'GROUP_VIDEO');--> statement-breakpoint
-CREATE TYPE "public"."commentable_type" AS ENUM('POST', 'REEL', 'STORY');--> statement-breakpoint
-CREATE TYPE "public"."connection_quality" AS ENUM('EXCELLENT', 'GOOD', 'POOR', 'DISCONNECTED');--> statement-breakpoint
-CREATE TYPE "public"."message_content_type" AS ENUM('TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'POST_SHARE', 'REEL_SHARE', 'STORY_SHARE', 'PROFILE_SHARE', 'LOCATION', 'CONTACT', 'VOICE', 'REPLY', 'SYSTEM');--> statement-breakpoint
-CREATE TYPE "public"."device_platform" AS ENUM('IOS', 'ANDROID', 'WEB');--> statement-breakpoint
-CREATE TYPE "public"."follow_status" AS ENUM('PENDING', 'ACCEPTED', 'BLOCKED');--> statement-breakpoint
-CREATE TYPE "public"."likeable_type" AS ENUM('POST', 'REEL', 'COMMENT', 'STORY');--> statement-breakpoint
-CREATE TYPE "public"."live_status" AS ENUM('SCHEDULED', 'LIVE', 'ENDED', 'ARCHIVED');--> statement-breakpoint
-CREATE TYPE "public"."media_type" AS ENUM('IMAGE', 'VIDEO', 'CAROUSEL', 'AUDIO');--> statement-breakpoint
-CREATE TYPE "public"."message_status" AS ENUM('SENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED');--> statement-breakpoint
-CREATE TYPE "public"."moderation_action" AS ENUM('WARN', 'CONTENT_REMOVE', 'CONTENT_HIDE', 'ACCOUNT_SUSPEND', 'ACCOUNT_BAN', 'FEATURE_RESTRICT', 'SHADOWBAN', 'RESTORE');--> statement-breakpoint
-CREATE TYPE "public"."notification_type" AS ENUM('LIKE', 'COMMENT', 'FOLLOW', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPT', 'MENTION', 'TAGGED_IN_POST', 'TAGGED_IN_COMMENT', 'TAGGED_IN_STORY', 'STORY_MENTION', 'STORY_REPLY', 'REEL_LIKE', 'REEL_COMMENT', 'LIVE_VIDEO', 'LIVE_JOIN', 'DM_MESSAGE', 'DM_REACTION', 'POST_REMINDER', 'ACHIEVEMENT', 'SECURITY_ALERT', 'FEATURE_ANNOUNCEMENT');--> statement-breakpoint
-CREATE TYPE "public"."post_audience" AS ENUM('PUBLIC', 'FOLLOWERS', 'CLOSE_FRIENDS');--> statement-breakpoint
-CREATE TYPE "public"."processing_job_status" AS ENUM('pending', 'processing', 'completed', 'failed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."processing_job_type" AS ENUM('media', 'video', 'audio', 'image', 'thumbnail', 'transcode', 'nsfw', 'metadata');--> statement-breakpoint
-CREATE TYPE "public"."report_reason" AS ENUM('SPAM', 'HATE_SPEECH', 'HARASSMENT', 'VIOLENCE', 'NUDITY', 'SELF_HARM', 'MISINFORMATION', 'SCAM', 'IMPERSONATION', 'COPYRIGHT', 'OTHER');--> statement-breakpoint
-CREATE TYPE "public"."report_status" AS ENUM('PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED');--> statement-breakpoint
-CREATE TYPE "public"."report_type" AS ENUM('USER', 'POST', 'REEL', 'STORY', 'COMMENT', 'MESSAGE', 'AUDIO');--> statement-breakpoint
-CREATE TYPE "public"."saveable_type" AS ENUM('POST', 'REEL', 'AUDIO');--> statement-breakpoint
-CREATE TYPE "public"."signaling_direction" AS ENUM('SENT', 'RECEIVED');--> statement-breakpoint
-CREATE TYPE "public"."sponsored_campaign_status" AS ENUM('draft', 'active', 'paused', 'ended', 'archived');--> statement-breakpoint
-CREATE TYPE "public"."sponsored_post_status" AS ENUM('pending', 'active', 'paused', 'rejected', 'archived');--> statement-breakpoint
-CREATE TYPE "public"."tus_upload_status" AS ENUM('created', 'uploading', 'completed', 'failed', 'expired');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."call_participant_status" AS ENUM('INVITED', 'RINGING', 'JOINING', 'CONNECTED', 'RECONNECTING', 'LEFT', 'DECLINED', 'FAILED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."call_status" AS ENUM('INITIATED', 'RINGING', 'CONNECTING', 'ACTIVE', 'ENDED', 'MISSED', 'DECLINED', 'FAILED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."call_type" AS ENUM('AUDIO', 'VIDEO', 'GROUP_AUDIO', 'GROUP_VIDEO');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."commentable_type" AS ENUM('POST', 'REEL', 'STORY');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."connection_quality" AS ENUM('EXCELLENT', 'GOOD', 'POOR', 'DISCONNECTED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."message_content_type" AS ENUM('TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'POST_SHARE', 'REEL_SHARE', 'STORY_SHARE', 'PROFILE_SHARE', 'LOCATION', 'CONTACT', 'VOICE', 'REPLY', 'SYSTEM');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."device_platform" AS ENUM('IOS', 'ANDROID', 'WEB');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."follow_status" AS ENUM('PENDING', 'ACCEPTED', 'BLOCKED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."likeable_type" AS ENUM('POST', 'REEL', 'COMMENT', 'STORY');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."live_status" AS ENUM('SCHEDULED', 'LIVE', 'ENDED', 'ARCHIVED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."media_type" AS ENUM('IMAGE', 'VIDEO', 'CAROUSEL', 'AUDIO');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."message_status" AS ENUM('SENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."moderation_action" AS ENUM('WARN', 'CONTENT_REMOVE', 'CONTENT_HIDE', 'ACCOUNT_SUSPEND', 'ACCOUNT_BAN', 'FEATURE_RESTRICT', 'SHADOWBAN', 'RESTORE');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."notification_type" AS ENUM('LIKE', 'COMMENT', 'FOLLOW', 'FOLLOW_REQUEST', 'FOLLOW_ACCEPT', 'MENTION', 'TAGGED_IN_POST', 'TAGGED_IN_COMMENT', 'TAGGED_IN_STORY', 'STORY_MENTION', 'STORY_REPLY', 'REEL_LIKE', 'REEL_COMMENT', 'LIVE_VIDEO', 'LIVE_JOIN', 'DM_MESSAGE', 'DM_REACTION', 'POST_REMINDER', 'ACHIEVEMENT', 'SECURITY_ALERT', 'FEATURE_ANNOUNCEMENT');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."post_audience" AS ENUM('PUBLIC', 'FOLLOWERS', 'CLOSE_FRIENDS');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."processing_job_status" AS ENUM('pending', 'processing', 'completed', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."processing_job_type" AS ENUM('media', 'video', 'audio', 'image', 'thumbnail', 'transcode', 'nsfw', 'metadata');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."report_reason" AS ENUM('SPAM', 'HATE_SPEECH', 'HARASSMENT', 'VIOLENCE', 'NUDITY', 'SELF_HARM', 'MISINFORMATION', 'SCAM', 'IMPERSONATION', 'COPYRIGHT', 'OTHER');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."report_status" AS ENUM('PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."report_type" AS ENUM('USER', 'POST', 'REEL', 'STORY', 'COMMENT', 'MESSAGE', 'AUDIO');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."saveable_type" AS ENUM('POST', 'REEL', 'AUDIO');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."signaling_direction" AS ENUM('SENT', 'RECEIVED');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."sponsored_campaign_status" AS ENUM('draft', 'active', 'paused', 'ended', 'archived');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."sponsored_post_status" AS ENUM('pending', 'active', 'paused', 'rejected', 'archived');--> statement-breakpoint
+CREATE TYPE IF NOT EXISTS "public"."tus_upload_status" AS ENUM('created', 'uploading', 'completed', 'failed', 'expired');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
