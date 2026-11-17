@@ -67,10 +67,10 @@ const PROVIDER_BRANCH = process.env.GITHUB_REF_NAME || "local";
 const DATABASE_URL = process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED || "postgresql://test:test@localhost:5432/instagram_test";
 
 // Test constants
-const TEST_USER_EMAIL = "pact-test@example.com";
-const TEST_USER_PASSWORD = "TestPass123!";
-const TEST_USERNAME = "pacttestuser";
-const TEST_FULL_NAME = "Pact Test User";
+const TEST_USER_EMAIL = "test@example.com";
+const TEST_USER_PASSWORD = "SecurePass123!";
+const TEST_USERNAME = "testuser";
+const TEST_FULL_NAME = "Test User";
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET || "test-secret-for-pact";
 
 // Create Drizzle client for state setup
@@ -234,27 +234,54 @@ async function setupTestUser(): Promise<TestUser> {
 
   // Create other user for interactions
   const otherUser = await db.insert(schema.users).values({
+    id: "e2490de5-5bd3-43d5-b7c4-526e33f71305",
     email: "other@example.com",
-    username: "otheruser",
-    fullName: "Other User",
-    passwordHash: await bcrypt.hash("OtherPass123!", 12),
+    username: "friend",
+    fullName: "Friend Name",
+    passwordHash: await bcrypt.hash("OtherPass123!", 10),
     isVerified: true,
     isPrivate: false,
+    avatarUrl: "https://storage.example.com/avatars/friend.jpg",
+  }).onConflictDoUpdate({
+    target: schema.users.id,
+    set: { username: "friend", fullName: "Friend Name" }
   }).returning({ id: schema.users.id });
 
   otherUserId = otherUser[0].id;
 
   // Create main test user
   const user = await db.insert(schema.users).values({
+    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
     email: TEST_USER_EMAIL,
     username: TEST_USERNAME,
     fullName: TEST_FULL_NAME,
-    passwordHash: await bcrypt.hash(TEST_USER_PASSWORD, 12),
+    name: TEST_FULL_NAME,
+    passwordHash: await bcrypt.hash(TEST_USER_PASSWORD, 10),
     isVerified: true,
     isPrivate: false,
+    avatarUrl: "https://storage.example.com/avatars/user123.jpg",
+    avatarThumbUrl: "https://storage.example.com/avatars/user123.jpg",
+    image: "https://storage.example.com/avatars/user123.jpg",
     bio: "Test bio",
     website: "https://example.com",
+  }).onConflictDoUpdate({
+    target: schema.users.id,
+    set: {
+      email: TEST_USER_EMAIL,
+      username: TEST_USERNAME,
+      fullName: TEST_FULL_NAME,
+      name: TEST_FULL_NAME,
+      avatarUrl: "https://storage.example.com/avatars/user123.jpg",
+    }
   }).returning({ id: schema.users.id });
+
+  // Create account record for Better Auth
+  await db.insert(schema.accounts).values({
+    userId: user[0].id,
+    accountId: TEST_USER_EMAIL,
+    providerId: "credential",
+    password: await bcrypt.hash(TEST_USER_PASSWORD, 10),
+  }).onConflictDoNothing();
 
   const tokens = await generateTokens(user[0].id);
 
@@ -273,7 +300,7 @@ async function setupTestUser(): Promise<TestUser> {
     },
   ]).returning({ id: schema.sessions.id });
 
-  // Create refresh tokens for session (both generated JWT, valid, and expired)
+  // Create refresh tokens for session (valid, old, and rotating)
   const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await db.insert(schema.refreshTokens).values([
     {
@@ -292,8 +319,7 @@ async function setupTestUser(): Promise<TestUser> {
       userId: user[0].id,
       sessionId: createdSessions[0].id,
       tokenHash: hashToken("old_refresh_token"),
-      expiresAt: new Date(Date.now() - 1000),
-      revokedAt: new Date(),
+      expiresAt: refreshExpiresAt,
     },
   ]);
 
@@ -343,9 +369,16 @@ async function setupTestPost(): Promise<TestPost> {
   console.log("📝 Setting up test post...");
 
   const post = await db.insert(schema.posts).values({
+    id: "abc123",
     authorId: testUser.id,
     caption: "Test post caption #hashtag",
     audience: "FOLLOWERS",
+    locationName: "San Francisco, CA",
+    locationLat: "37.7749",
+    locationLng: "-122.4194",
+  }).onConflictDoUpdate({
+    target: schema.posts.id,
+    set: { caption: "Test post caption #hashtag" },
   }).returning({ id: schema.posts.id, authorId: schema.posts.authorId, caption: schema.posts.caption });
 
   // Update media item to reference this post
@@ -369,29 +402,33 @@ async function setupTestConversation(): Promise<TestConversation> {
   console.log("💬 Setting up test conversation...");
 
   const conversation = await db.insert(schema.conversations).values({
+    id: "abc123",
     isGroup: false,
-  }).returning({ id: schema.conversations.id });
+  }).onConflictDoNothing().returning({ id: schema.conversations.id });
+
+  const convId = conversation[0]?.id || "abc123";
 
   // Add participants
   await db.insert(schema.conversationMembers).values([
-    { conversationId: conversation[0].id, userId: testUser.id },
-    { conversationId: conversation[0].id, userId: otherUserId },
-  ]);
+    { conversationId: convId, userId: testUser.id },
+    { conversationId: convId, userId: otherUserId },
+  ]).onConflictDoNothing();
 
   // Add a message
   await db.insert(schema.messages).values({
-    conversationId: conversation[0].id,
+    id: "abc123",
+    conversationId: convId,
     senderId: otherUserId,
     contentType: "TEXT",
     textContent: "Hey! How are you?",
-  });
+  }).onConflictDoNothing();
 
   testConversation = {
-    id: conversation[0].id,
+    id: convId,
     participants: [testUser.id, otherUserId],
   };
 
-  console.log(`✅ Test conversation created: ${conversation[0].id}`);
+  console.log(`✅ Test conversation created: ${convId}`);
   return testConversation;
 }
 
@@ -440,6 +477,7 @@ async function setupTestNotification() {
   console.log("🔔 Setting up test notification...");
 
   await db.insert(schema.notifications).values({
+    id: "abc123",
     recipientId: testUser.id,
     actorId: otherUserId,
     type: "LIKE",
@@ -449,6 +487,9 @@ async function setupTestNotification() {
     referenceId: testPost.id,
     previewText: "Test post caption...",
     isRead: false,
+  }).onConflictDoUpdate({
+    target: schema.notifications.id,
+    set: { isRead: false },
   });
   console.log("✅ Test notification created");
 }
@@ -509,16 +550,24 @@ async function verifyProvider() {
       // No setup needed
     },
     "a registered user exists": async () => {
-      if (!testUser) await initializeTestData();
+      await setupTestUser();
     },
     "a valid registration request": async () => {
-      // No setup needed - request is valid
-      // Ensure user doesn't exist
-      await db.delete(schema.users).where(eq(schema.users.email, "newuser@example.com"));
+      await db.delete(schema.users).where(inArray(schema.users.email, ["newuser@example.com", "test@example.com"]));
     },
     "a valid refresh token exists": async () => {
       if (!testUser) await initializeTestData();
-      // Refresh token is in testUser.refreshToken
+      // Ensure old_refresh_token is present and valid
+      await db.delete(schema.refreshTokens).where(eq(schema.refreshTokens.tokenHash, hashToken("old_refresh_token")));
+      const [session] = await db.select({ id: schema.sessions.id }).from(schema.sessions).where(eq(schema.sessions.userId, testUser!.id)).limit(1);
+      if (session) {
+        await db.insert(schema.refreshTokens).values({
+          userId: testUser!.id,
+          sessionId: session.id,
+          tokenHash: hashToken("old_refresh_token"),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+      }
     },
     "an authenticated user session exists": async () => {
       if (!testUser) await initializeTestData();
@@ -543,15 +592,16 @@ async function verifyProvider() {
     },
     "a post exists and user is authenticated": async () => {
       if (!testPost || !testUser) await initializeTestData();
+      await db.delete(schema.likes).where(and(eq(schema.likes.userId, testUser!.id), eq(schema.likes.postId, "abc123")));
     },
     "a liked post exists": async () => {
       if (!testPost || !testUser) await initializeTestData();
       await db.insert(schema.likes).values({
-        userId: testUser.id,
+        userId: testUser!.id,
         likeableType: "POST",
-        likeableId: testPost.id,
-        postId: testPost.id,
-      }).onConflictDoNothing({ target: [schema.likes.userId, schema.likes.likeableType, schema.likes.likeableId] });
+        likeableId: "abc123",
+        postId: "abc123",
+      }).onConflictDoNothing();
     },
     "reels exist for feed": async () => {
       if (!testUser) await initializeTestData();
