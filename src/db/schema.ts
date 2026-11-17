@@ -1182,7 +1182,7 @@ export const sessions = pgTable(
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    token: varchar("token", { length: 255 }).unique().notNull(),
+    token: text("token").unique().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ipAddress: varchar("ip_address", { length: 45 }),
     userAgent: text("user_agent"),

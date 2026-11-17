@@ -14,10 +14,15 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, or, inArray, sql } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import * as bcrypt from "bcrypt";
 import { SignJWT } from "jose";
+import { createHash } from "crypto";
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,7 +87,7 @@ async function generateTokens(userId: string): Promise<{ accessToken: string; re
     device_id: "pact-test-device",
     scope: "read write dm upload",
   })
-    .setProtectedHeader({ alg: "EdDSA" })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("15m")
     .setIssuer("https://auth.instagram-clone.com")
@@ -94,7 +99,7 @@ async function generateTokens(userId: string): Promise<{ accessToken: string; re
     type: "refresh",
     device_id: "pact-test-device",
   })
-    .setProtectedHeader({ alg: "EdDSA" })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
     .setIssuer("https://auth.instagram-clone.com")
@@ -181,8 +186,10 @@ async function cleanupDatabase() {
   await db.delete(schema.mediaItems).where(inArray(schema.mediaItems.mediaableId, userIds));
 
   await db.delete(schema.follows).where(
-    sql`${schema.follows.followerId} IN (${sql.join(userIds.map(() => sql.placeholder()), sql`, `)}) OR ${schema.follows.followingId} IN (${sql.join(userIds.map(() => sql.placeholder()), sql`, `)})`,
-    [...userIds, ...userIds]
+    or(
+      inArray(schema.follows.followerId, userIds),
+      inArray(schema.follows.followingId, userIds)
+    )
   );
 
   await db.delete(schema.users).where(eq(schema.users.email, TEST_USER_EMAIL));
@@ -219,6 +226,45 @@ async function setupTestUser(): Promise<TestUser> {
   }).returning({ id: schema.users.id });
 
   const tokens = await generateTokens(user[0].id);
+
+  // Create sessions for authentication (both generated JWT and static contract token)
+  const sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const createdSessions = await db.insert(schema.sessions).values([
+    {
+      userId: user[0].id,
+      token: tokens.accessToken,
+      expiresAt: sessionExpiresAt,
+    },
+    {
+      userId: user[0].id,
+      token: "valid_access_token",
+      expiresAt: sessionExpiresAt,
+    },
+  ]).returning({ id: schema.sessions.id });
+
+  // Create refresh tokens for session (both generated JWT, valid, and expired)
+  const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.insert(schema.refreshTokens).values([
+    {
+      userId: user[0].id,
+      sessionId: createdSessions[0].id,
+      tokenHash: hashToken(tokens.refreshToken),
+      expiresAt: refreshExpiresAt,
+    },
+    {
+      userId: user[0].id,
+      sessionId: createdSessions[0].id,
+      tokenHash: hashToken("valid_refresh_token"),
+      expiresAt: refreshExpiresAt,
+    },
+    {
+      userId: user[0].id,
+      sessionId: createdSessions[0].id,
+      tokenHash: hashToken("old_refresh_token"),
+      expiresAt: new Date(Date.now() - 1000),
+      revokedAt: new Date(),
+    },
+  ]);
 
   testUser = {
     id: user[0].id,
