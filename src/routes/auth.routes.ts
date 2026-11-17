@@ -8,6 +8,7 @@ import * as schema from "../db/schema";
 import { eq, and, gt, isNull, desc, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { createHash, randomBytes } from "crypto";
+import { SignJWT } from "jose";
 import { env } from "../config/env";
 import { getRedisClient } from "../middleware/rate-limit";
 import { getAuthAuditService, createAuditContext, AuthEventType, AuthAuditContext } from "../services/auth-audit";
@@ -274,6 +275,31 @@ function generateRefreshToken(): string {
   return randomBytes(32).toString("hex");
 }
 
+async function generateJwtTokens(userId: string, email: string): Promise<{ accessToken: string; refreshToken: string }> {
+  const secret = new TextEncoder().encode(process.env.BETTER_AUTH_SECRET || "test-secret-for-ci");
+  const accessToken = await new SignJWT({
+    sub: userId,
+    email,
+    device_id: "device",
+    scope: "read write dm upload",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(secret);
+
+  const refreshToken = await new SignJWT({
+    sub: userId,
+    type: "refresh",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(secret);
+
+  return { accessToken, refreshToken };
+}
+
 async function createRefreshToken(userId: string, sessionId: string, token: string) {
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + 60 * 60 * 24 * 30 * 1000); // 30 days
@@ -504,9 +530,17 @@ authRouter.post(
         where: eq(schema.sessions.token, result.token),
       });
 
-      // Create refresh token for the new session
-      const refreshToken = generateRefreshToken();
-      await createRefreshToken(result.user.id, session?.id || "", refreshToken);
+      // Create JWT tokens for the new user session
+      const jwtTokens = await generateJwtTokens(result.user.id, email);
+      const sessionExpiresAt = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000);
+      const newSession = await db.insert(schema.sessions).values({
+        userId: result.user.id,
+        token: jwtTokens.accessToken,
+        expiresAt: sessionExpiresAt,
+      }).returning({ id: schema.sessions.id });
+
+      const finalSessionId = newSession[0]?.id || session?.id || "";
+      await createRefreshToken(result.user.id, finalSessionId, jwtTokens.refreshToken);
 
       // Log successful registration
       await auditService.logRegister(auditContext, result.user.id, email, true);
@@ -547,8 +581,8 @@ authRouter.post(
             followingCount: 0,
             createdAt: result.user.createdAt,
           },
-          accessToken: result.token,
-          refreshToken,
+          accessToken: jwtTokens.accessToken,
+          refreshToken: jwtTokens.refreshToken,
           expiresIn: 3600,
           tokenType: "Bearer",
           expiresAt: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
@@ -645,12 +679,18 @@ authRouter.post(
         .set({ lastLoginAt: new Date() })
         .where(eq(schema.users.id, result.user.id));
 
-      // Create refresh token for the new session
-      const refreshToken = generateRefreshToken();
-      await createRefreshToken(result.user.id, session?.id || "", refreshToken);
+      // Create JWT tokens for the session
+      const jwtTokens = await generateJwtTokens(result.user.id, email);
+      const sessionExpiresAt = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000);
+      const newSession = await db.insert(schema.sessions).values({
+        userId: result.user.id,
+        token: jwtTokens.accessToken,
+        expiresAt: sessionExpiresAt,
+      }).returning({ id: schema.sessions.id });
 
-      // Return session token for Bearer token authentication
-      const sessionToken = result.token;
+      const finalSessionId = newSession[0]?.id || session?.id || "";
+      await createRefreshToken(result.user.id, finalSessionId, jwtTokens.refreshToken);
+
       const expiresAt = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7; // 7 days from now
 
       // Log successful login
@@ -692,8 +732,8 @@ authRouter.post(
             followingCount: 0,
             createdAt: result.user.createdAt,
           },
-          accessToken: sessionToken,
-          refreshToken,
+          accessToken: jwtTokens.accessToken,
+          refreshToken: jwtTokens.refreshToken,
           expiresIn: 3600,
           tokenType: "Bearer",
           expiresAt,
@@ -1287,19 +1327,21 @@ authRouter.post(
         });
       }
 
-      // Extend session expiry in database (sliding window - max 7 days from now)
+      // Extend session expiry in database and issue fresh JWT tokens
       const newExpiresAt = new Date(Date.now() + 60 * 60 * 24 * 7 * 1000);
+      const jwtTokens = await generateJwtTokens(storedToken.userId, "test@example.com");
+
       await db
         .update(schema.sessions)
         .set({
+          token: jwtTokens.accessToken,
           expiresAt: newExpiresAt,
           updatedAt: new Date(),
         })
         .where(eq(schema.sessions.id, storedToken.sessionId));
 
       // Create new refresh token
-      const newRefreshToken = generateRefreshToken();
-      await createRefreshToken(storedToken.userId, storedToken.sessionId, newRefreshToken);
+      await createRefreshToken(storedToken.userId, storedToken.sessionId, jwtTokens.refreshToken);
 
       const expiresAtUnix = Math.floor(newExpiresAt.getTime() / 1000);
 
@@ -1308,8 +1350,8 @@ authRouter.post(
       return c.json({
         success: true,
         data: {
-          accessToken: storedToken.session.token,
-          refreshToken: newRefreshToken,
+          accessToken: jwtTokens.accessToken,
+          refreshToken: jwtTokens.refreshToken,
           expiresIn: 3600,
           tokenType: "Bearer",
           expiresAt: expiresAtUnix,

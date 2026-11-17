@@ -182,7 +182,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -191,7 +191,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -200,7 +200,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             }
@@ -356,7 +356,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -597,7 +597,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -606,7 +606,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -838,7 +838,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -847,7 +847,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             }
@@ -1072,7 +1072,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1107,7 +1107,7 @@
             "matchers": [
               {
                 "match": "regex",
-                "regex": "^/v1/posts/"
+                "regex": "^/v1/posts/.*"
               }
             ]
           }
@@ -1266,7 +1266,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1275,7 +1275,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1301,7 +1301,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1494,7 +1494,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1521,7 +1521,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             }
@@ -1724,7 +1724,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             }
@@ -1810,7 +1810,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1819,7 +1819,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -1951,7 +1951,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -2021,7 +2021,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2030,7 +2030,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2047,7 +2047,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2156,7 +2156,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -2190,7 +2190,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2320,7 +2320,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2329,7 +2329,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2462,7 +2462,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -2505,7 +2505,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2540,7 +2540,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2575,7 +2575,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2584,7 +2584,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             }
@@ -2686,7 +2686,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2730,7 +2730,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -2944,7 +2944,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -2953,7 +2953,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -2970,7 +2970,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -3211,7 +3211,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -3220,7 +3220,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             }
@@ -3238,10 +3238,10 @@
       ],
       "request": {
         "body": {
-          "displayName": "Test User",
-          "email": "test@example.com",
+          "displayName": "New User",
+          "email": "newuser@example.com",
           "password": "SecurePass123!",
-          "username": "testuser"
+          "username": "newuser"
         },
         "headers": {
           "Content-Type": "application/json"
@@ -3271,12 +3271,12 @@
             "user": {
               "avatarUrl": "https://storage.example.com/avatars/default.png",
               "createdAt": "2024-01-01T00:00:00.000Z",
-              "displayName": "Test User",
-              "email": "test@example.com",
+              "displayName": "New User",
+              "email": "newuser@example.com",
               "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
               "isPrivate": false,
               "isVerified": false,
-              "username": "testuser"
+              "username": "newuser"
             }
           },
           "success": true
@@ -3314,7 +3314,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -3323,7 +3323,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^eyJ"
+                  "regex": "^eyJ.*"
                 }
               ]
             },
@@ -3340,7 +3340,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -3570,7 +3570,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -3613,7 +3613,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },
@@ -3639,7 +3639,7 @@
               "matchers": [
                 {
                   "match": "regex",
-                  "regex": "^https://"
+                  "regex": "^https://.*"
                 }
               ]
             },

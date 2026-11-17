@@ -62,11 +62,12 @@ storyRouter.get("/feed", async (c) => {
     displayName: s.displayName || s.fullName || "Story User",
     avatarUrl: s.avatarUrl || "https://storage.example.com/avatars/story.jpg",
     isVerified: s.isVerified ?? false,
+    hasUnviewed: s.hasUnviewed ?? true,
     items: (s.items || []).map((it: any) => ({
       id: it.id,
       type: (it.type || "image").toLowerCase(),
       mediaUrl: it.mediaUrl || "https://storage.example.com/stories/item1.jpg",
-      duration: it.duration || 5,
+      duration: parseInt(String(it.duration), 10) || 5,
       isViewed: it.isViewed ?? false,
       createdAt: it.createdAt || new Date().toISOString(),
     })),
@@ -78,6 +79,7 @@ storyRouter.get("/feed", async (c) => {
     displayName: "Story User",
     avatarUrl: "https://storage.example.com/avatars/story.jpg",
     isVerified: false,
+    hasUnviewed: true,
     items: [
       {
         id: crypto.randomUUID(),
@@ -147,7 +149,7 @@ storyRouter.post("/", zValidator("json", createStorySchema), async (c) => {
       id: it.id || crypto.randomUUID(),
       type: (it.type || "image").toLowerCase(),
       mediaUrl: it.mediaUrl,
-      duration: it.duration || 5,
+      duration: parseInt(String(it.duration), 10) || 5,
       createdAt: it.createdAt || new Date().toISOString(),
       expiresAt: it.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     })),

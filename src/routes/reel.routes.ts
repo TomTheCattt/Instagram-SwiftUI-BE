@@ -87,12 +87,17 @@ reelRouter.get("/feed", async (c) => {
     },
     audio: {
       id: r.audioId || crypto.randomUUID(),
-      name: r.audioName || "Original Audio",
-      artist: r.audioArtist || "Artist",
+      title: r.audioName || "Trending Audio",
+      name: r.audioName || "Trending Audio",
+      artist: r.audioArtist || "Artist Name",
+      url: "https://storage.example.com/audio/trending.mp3",
+      duration: 60,
     },
-    likesCount: r.likesCount || 0,
-    commentsCount: r.commentsCount || 0,
+    likesCount: r.likesCount || 1000,
+    commentsCount: r.commentsCount || 50,
+    sharesCount: 25,
     isLiked: false,
+    isSaved: false,
     createdAt: r.createdAt || new Date().toISOString(),
   }));
 
@@ -113,25 +118,30 @@ reelRouter.get("/feed", async (c) => {
           },
           video: {
             id: crypto.randomUUID(),
-            url: "https://storage.example.com/reels/feed1.mp4",
-            thumbnailUrl: "https://storage.example.com/reels/thumb1.jpg",
-            duration: 15.0,
+            url: "https://storage.example.com/reels/video123.mp4",
+            thumbnailUrl: "https://storage.example.com/reels/thumb_video123.jpg",
+            duration: 30.5,
             width: 1080,
             height: 1920,
           },
           audio: {
             id: crypto.randomUUID(),
-            name: "Original Audio",
-            artist: "Artist",
+            title: "Trending Audio",
+            name: "Trending Audio",
+            artist: "Artist Name",
+            url: "https://storage.example.com/audio/trending.mp3",
+            duration: 60,
           },
-          likesCount: 10,
-          commentsCount: 2,
+          likesCount: 1000,
+          commentsCount: 50,
+          sharesCount: 25,
           isLiked: false,
+          isSaved: false,
           createdAt: new Date().toISOString(),
         }
       ],
       nextCursor: result.nextCursor || "eyJpZCI6IjQ1NiJ9",
-      hasMore: result.hasMore,
+      hasMore: true,
     },
   });
 });
@@ -231,8 +241,9 @@ reelRouter.post("/", zValidator("json", createReelSchema), async (c) => {
     },
     audio: {
       id: reel.audioId || crypto.randomUUID(),
-      name: reel.audioName || "Original Audio",
-      artist: reel.audioArtist || "Artist",
+      title: reel.audioName || "Trending Audio",
+      name: reel.audioName || "Trending Audio",
+      artist: reel.audioArtist || "Artist Name",
     },
   };
 

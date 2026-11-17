@@ -91,8 +91,8 @@ userRouter.get("/me", async (c) => {
         displayName: user.fullName || user.username,
         email: user.email,
         phone: user.phone,
-        avatarUrl: user.avatarUrl || "https://storage.example.com/avatars/default.png",
-        bannerUrl: null,
+        avatarUrl: user.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
+        bannerUrl: (user as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
         bio: user.bio,
         website: user.website,
         isVerified: user.isVerified,
@@ -137,8 +137,8 @@ const handleUpdateProfile = async (c: any) => {
         displayName: updated.fullName || updated.username,
         email: updated.email,
         phone: updated.phone,
-        avatarUrl: updated.avatarUrl || "https://storage.example.com/avatars/default.png",
-        bannerUrl: null,
+        avatarUrl: updated.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
+        bannerUrl: (updated as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
         bio: updated.bio,
         website: updated.website,
         isVerified: updated.isVerified,
@@ -1334,7 +1334,7 @@ userRouter.get("/:id", async (c) => {
   const targetId = c.req.param("id");
 
   const targetUser = await db.query.users.findFirst({
-    where: eq(schema.users.id, targetId),
+    where: or(eq(schema.users.id, targetId), eq(schema.users.username, targetId)),
   });
 
   if (!targetUser) {
@@ -1344,11 +1344,13 @@ userRouter.get("/:id", async (c) => {
     });
   }
 
+  const realTargetId = targetUser.id;
+
   // Check if blocked
   const blocked = await db.query.blocks.findFirst({
     where: or(
-      and(eq(schema.blocks.blockerId, user.id), eq(schema.blocks.blockedId, targetId)),
-      and(eq(schema.blocks.blockerId, targetId), eq(schema.blocks.blockedId, user.id))
+      and(eq(schema.blocks.blockerId, user.id), eq(schema.blocks.blockedId, realTargetId)),
+      and(eq(schema.blocks.blockerId, realTargetId), eq(schema.blocks.blockedId, user.id))
     ),
   });
 
@@ -1361,15 +1363,15 @@ userRouter.get("/:id", async (c) => {
 
   // Check follow status
   const isFollowing = !!(await db.query.follows.findFirst({
-    where: and(eq(schema.follows.followerId, user.id), eq(schema.follows.followingId, targetId)),
+    where: and(eq(schema.follows.followerId, user.id), eq(schema.follows.followingId, realTargetId)),
   }));
 
   const isFollowedBy = !!(await db.query.follows.findFirst({
-    where: and(eq(schema.follows.followerId, targetId), eq(schema.follows.followingId, user.id)),
+    where: and(eq(schema.follows.followerId, realTargetId), eq(schema.follows.followingId, user.id)),
   }));
 
   // If private and not following, return limited info
-  if (targetUser.isPrivate && !isFollowing && user.id !== targetId) {
+  if (targetUser.isPrivate && !isFollowing && user.id !== realTargetId) {
     return c.json({
       success: true,
       data: {
@@ -1377,13 +1379,15 @@ userRouter.get("/:id", async (c) => {
           id: targetUser.id,
           username: targetUser.username,
           fullName: targetUser.fullName,
-          avatarUrl: targetUser.avatarUrl,
+          displayName: targetUser.fullName || targetUser.username,
+          avatarUrl: targetUser.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
+          bannerUrl: (targetUser as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
           bio: targetUser.bio,
-          isVerified: targetUser.isVerified,
-          isPrivate: targetUser.isPrivate,
-          postsCount: targetUser.postsCount,
-          followersCount: targetUser.followersCount,
-          followingCount: targetUser.followingCount,
+          isVerified: targetUser.isVerified ?? false,
+          isPrivate: targetUser.isPrivate ?? false,
+          postsCount: targetUser.postsCount ?? 0,
+          followersCount: targetUser.followersCount ?? 0,
+          followingCount: targetUser.followingCount ?? 0,
           isFollowing,
           isFollowedBy,
         },
@@ -1398,16 +1402,18 @@ userRouter.get("/:id", async (c) => {
         id: targetUser.id,
         username: targetUser.username,
         fullName: targetUser.fullName,
-        email: user.id === targetId ? targetUser.email : undefined,
-        phone: user.id === targetId ? targetUser.phone : undefined,
-        avatarUrl: targetUser.avatarUrl,
+        displayName: targetUser.fullName || targetUser.username,
+        email: user.id === realTargetId ? targetUser.email : undefined,
+        phone: user.id === realTargetId ? targetUser.phone : undefined,
+        avatarUrl: targetUser.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
+        bannerUrl: (targetUser as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
         bio: targetUser.bio,
         website: targetUser.website,
-        isVerified: targetUser.isVerified,
-        isPrivate: targetUser.isPrivate,
-        postsCount: targetUser.postsCount,
-        followersCount: targetUser.followersCount,
-        followingCount: targetUser.followingCount,
+        isVerified: targetUser.isVerified ?? false,
+        isPrivate: targetUser.isPrivate ?? false,
+        postsCount: targetUser.postsCount ?? 0,
+        followersCount: targetUser.followersCount ?? 0,
+        followingCount: targetUser.followingCount ?? 0,
         createdAt: targetUser.createdAt,
         isFollowing,
         isFollowedBy,

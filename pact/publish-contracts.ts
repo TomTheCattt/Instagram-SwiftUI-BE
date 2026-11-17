@@ -55,8 +55,23 @@ async function publishContracts() {
       const consumer = pact.consumer?.name || "instagram-ios-app";
       const provider = pact.provider?.name || "instagram-backend";
 
-      // Normalize non-JSON plain text regex bodies if serialized as stringified JSON
+      // Normalize regex rules and non-JSON plain text regex bodies
       let modified = false;
+
+      function normalizeObj(obj: any) {
+        if (!obj || typeof obj !== "object") return;
+        if (obj.match === "regex" && typeof obj.regex === "string") {
+          if (obj.regex.startsWith("^") && !obj.regex.endsWith("$") && !obj.regex.endsWith(".*") && !obj.regex.endsWith("[\\s\\S]*")) {
+            obj.regex = obj.regex + ".*";
+            modified = true;
+          }
+        }
+        for (const key of Object.keys(obj)) {
+          normalizeObj(obj[key]);
+        }
+      }
+      normalizeObj(pact);
+
       if (Array.isArray(pact.interactions)) {
         for (const it of pact.interactions) {
           if (

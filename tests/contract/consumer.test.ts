@@ -12,7 +12,11 @@ const { like, eachLike, uuid } = MatchersV3;
 // Pact V3 regex matcher for paths, strings, and patterns
 const term = (opts: { generate: string; matcher: string } | string) => {
   if (typeof opts === "string") return opts;
-  return MatchersV3.regex(opts.matcher, opts.generate);
+  let matcher = opts.matcher;
+  if (matcher.startsWith("^") && !matcher.endsWith("$") && !matcher.endsWith(".*") && !matcher.endsWith("[\\s\\S]*")) {
+    matcher = `${matcher}.*`;
+  }
+  return MatchersV3.regex(matcher, opts.generate);
 };
 
 // ISO 8601 datetime matcher supporting optional milliseconds from JavaScript toISOString()
@@ -47,12 +51,24 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
   afterAll(() => {
     provider.pact.writePactFile(PACT_DIR);
 
-    // Normalize pact file: fix non-JSON plain text body matchers that Pact V3 FFI serializes as stringified JSON literals
+    // Normalize pact file: fix non-JSON plain text body matchers and ensure regex anchors have wildcard suffix
     const pactFile = path.join(PACT_DIR, "instagram-ios-app-instagram-backend.json");
     if (fs.existsSync(pactFile)) {
       try {
         const pact = JSON.parse(fs.readFileSync(pactFile, "utf-8"));
-        let updated = false;
+        function normalizeObj(obj: any) {
+          if (!obj || typeof obj !== "object") return;
+          if (obj.match === "regex" && typeof obj.regex === "string") {
+            if (obj.regex.startsWith("^") && !obj.regex.endsWith("$") && !obj.regex.endsWith(".*") && !obj.regex.endsWith("[\\s\\S]*")) {
+              obj.regex = obj.regex + ".*";
+            }
+          }
+          for (const key of Object.keys(obj)) {
+            normalizeObj(obj[key]);
+          }
+        }
+        normalizeObj(pact);
+
         if (Array.isArray(pact.interactions)) {
           for (const it of pact.interactions) {
             if (
@@ -76,13 +92,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
                   matchers: [{ match: "regex", regex }],
                 },
               };
-              updated = true;
             }
           }
         }
-        if (updated) {
-          fs.writeFileSync(pactFile, JSON.stringify(pact, null, 2) + "\n");
-        }
+        fs.writeFileSync(pactFile, JSON.stringify(pact, null, 2) + "\n");
       } catch (err) {
         console.error("Failed to post-process pact file:", err);
       }
@@ -149,10 +162,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
             "Content-Type": "application/json",
           },
           body: like({
-            email: "test@example.com",
+            email: "newuser@example.com",
             password: "SecurePass123!",
-            username: "testuser",
-            displayName: "Test User",
+            username: "newuser",
+            displayName: "New User",
           }),
         },
         willRespondWith: {
@@ -165,9 +178,9 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
             data: like({
               user: like({
                 id: uuid(),
-                email: "test@example.com",
-                username: "testuser",
-                displayName: "Test User",
+                email: "newuser@example.com",
+                username: "newuser",
+                displayName: "New User",
                 avatarUrl: term({ generate: "https://storage.example.com/avatars/default.png", matcher: "^https://" }),
                 isVerified: false,
                 isPrivate: false,

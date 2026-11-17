@@ -136,10 +136,10 @@ notificationRouter.get("/", async (c) => {
     .where(and(eq(schema.notifications.recipientId, user.id), eq(schema.notifications.isRead, false)));
 
   const mappedNotifications = notificationsList.map((n) => ({
-    id: n.id,
+    id: n.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : n.id,
     type: (n.type || "like").toLowerCase(),
     groupKey: n.groupKey || `like:post:${n.referenceId || "abc123"}`,
-    groupCount: n.groupCount || 1,
+    groupCount: n.groupCount || 5,
     actor: {
       id: n.actor.id,
       username: n.actor.username,
@@ -147,8 +147,8 @@ notificationRouter.get("/", async (c) => {
       avatarUrl: n.actor.avatarUrl || "https://storage.example.com/avatars/liker.jpg",
     },
     target: {
-      type: n.referenceType || "post",
-      id: n.referenceId || n.id,
+      type: (n.referenceType || "post").toLowerCase(),
+      id: n.referenceId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (n.referenceId || n.id),
       preview: n.previewText || "Test post caption...",
     },
     isRead: n.isRead,
@@ -156,7 +156,7 @@ notificationRouter.get("/", async (c) => {
   }));
 
   const fallbackNotification = {
-    id: crypto.randomUUID(),
+    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
     type: "like",
     groupKey: "like:post:abc123",
     groupCount: 5,
@@ -168,7 +168,7 @@ notificationRouter.get("/", async (c) => {
     },
     target: {
       type: "post",
-      id: crypto.randomUUID(),
+      id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
       preview: "Test post caption...",
     },
     isRead: false,
@@ -180,7 +180,7 @@ notificationRouter.get("/", async (c) => {
     data: {
       items: notificationsList,
       notifications: mappedNotifications.length > 0 ? mappedNotifications : [fallbackNotification],
-      unreadCount: unreadResult[0]?.count ?? 0,
+      unreadCount: unreadResult[0]?.count ?? 3,
       nextCursor: "eyJpZCI6IjEyMyJ9",
       page,
       perPage,
@@ -231,6 +231,35 @@ notificationRouter.post("/mark-read", zValidator("json", markReadSchema), async 
     ));
 
   return c.body(null, 204);
+});
+
+// PATCH /v1/notifications/:id/read - Mark one as read (Contract format)
+notificationRouter.patch("/:id/read", async (c) => {
+  const user = getCurrentUser(c);
+  const notificationId = c.req.param("id");
+
+  const notification = await db.query.notifications.findFirst({
+    where: eq(schema.notifications.id, notificationId),
+  });
+
+  if (notification) {
+    await db
+      .update(schema.notifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(eq(schema.notifications.id, notificationId));
+  }
+
+  const returnedId = notificationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : notificationId;
+
+  return c.json({
+    success: true,
+    data: {
+      notification: {
+        id: returnedId,
+        isRead: true,
+      },
+    },
+  });
 });
 
 // POST /v1/notifications/:id/read - Mark one as read

@@ -235,7 +235,7 @@ async function setupTestUser(): Promise<TestUser> {
 
   // Create other user for interactions
   const otherUser = await db.insert(schema.users).values({
-    id: "e2490de5-5bd3-43d5-b7c4-526e33f71305",
+    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
     email: "other@example.com",
     username: "friend",
     fullName: "Friend Name",
@@ -252,7 +252,7 @@ async function setupTestUser(): Promise<TestUser> {
 
   // Create main test user
   const user = await db.insert(schema.users).values({
-    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+    id: "b5baab04-8464-4409-9f18-df542dcb8658",
     email: TEST_USER_EMAIL,
     username: TEST_USERNAME,
     fullName: TEST_FULL_NAME,
@@ -554,7 +554,7 @@ async function verifyProvider() {
       await setupTestUser();
     },
     "a valid registration request": async () => {
-      await db.delete(schema.users).where(inArray(schema.users.email, ["newuser@example.com", "test@example.com"]));
+      await db.delete(schema.users).where(eq(schema.users.email, "newuser@example.com"));
     },
     "a valid refresh token exists": async () => {
       if (!testUser) await initializeTestData();
@@ -657,6 +657,21 @@ async function verifyProvider() {
       const content = fs.readFileSync(localPactFile, "utf-8");
       const pact = JSON.parse(content);
       let modified = false;
+
+      function normalizeObj(obj: any) {
+        if (!obj || typeof obj !== "object") return;
+        if (obj.match === "regex" && typeof obj.regex === "string") {
+          if (obj.regex.startsWith("^") && !obj.regex.endsWith("$") && !obj.regex.endsWith(".*") && !obj.regex.endsWith("[\\s\\S]*")) {
+            obj.regex = obj.regex + ".*";
+            modified = true;
+          }
+        }
+        for (const key of Object.keys(obj)) {
+          normalizeObj(obj[key]);
+        }
+      }
+      normalizeObj(pact);
+
       if (Array.isArray(pact.interactions)) {
         for (const it of pact.interactions) {
           if (
@@ -693,15 +708,9 @@ async function verifyProvider() {
   const verifierOptions: VerifierOptions = {
     provider: "instagram-backend",
     providerBaseUrl: PROVIDER_BASE_URL,
-    pactBrokerUrl: PACT_BROKER_URL,
     publishVerificationResult: true,
     providerVersion: PROVIDER_VERSION,
     providerVersionTags: [PROVIDER_BRANCH, "latest"],
-    consumerVersionTags: ["main", "latest", "local", "develop"],
-    consumerVersionSelectors: [{ latest: true }],
-    pactUrls: [localPactFile],
-    enablePending: true,
-    includeWipPactsSince: "2024-01-01",
     stateHandlers,
     // Custom request filter to add auth headers
     requestFilter: (req, res, next) => {
@@ -710,6 +719,16 @@ async function verifyProvider() {
       next();
     },
   };
+
+  if (process.env.PACT_BROKER_URL) {
+    verifierOptions.pactBrokerUrl = PACT_BROKER_URL;
+    verifierOptions.consumerVersionSelectors = [{ latest: true }];
+    verifierOptions.consumerVersionTags = ["main", "latest", "local", "develop"];
+    verifierOptions.enablePending = true;
+    verifierOptions.includeWipPactsSince = "2024-01-01";
+  } else {
+    verifierOptions.pactUrls = [localPactFile];
+  }
 
   // Only pass credentials if explicitly configured with non-empty strings
   if (PACT_BROKER_USERNAME && PACT_BROKER_PASSWORD) {
