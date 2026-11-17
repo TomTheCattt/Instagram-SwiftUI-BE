@@ -241,8 +241,9 @@ jobs:
 
       - name: Run database migrations
         run: |
-          npx drizzle-kit migrate 2>&1
-          echo "=== Migration completed successfully ==="
+          npx drizzle-kit migrate > migration.log 2>&1
+          cat migration.log
+          echo "=== Migration exit code: $? ==="
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
