@@ -225,6 +225,9 @@ jobs:
       - name: Generate Drizzle schema
         run: npm run drizzle:generate
 
+      - name: Debug - List generated migration files
+        run: ls -la drizzle/
+
       - name: Wait for PostgreSQL to be fully ready
         run: |
           for i in {1..30}; do
@@ -237,19 +240,13 @@ jobs:
           done
 
       - name: Run database migrations
-        run: npx drizzle-kit push --verbose
+        run: npx drizzle-kit migrate
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
       - name: Debug - List database tables
         run: |
           PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "\dt"
-        env:
-          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
-
-      - name: Debug - Check schema version
-        run: |
-          PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "SELECT * FROM _drizzle_migrations LIMIT 10;"
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
