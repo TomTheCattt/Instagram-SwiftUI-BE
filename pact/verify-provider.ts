@@ -19,6 +19,8 @@ import * as schema from "../src/db/schema";
 import * as bcrypt from "bcrypt";
 import { SignJWT } from "jose";
 import { createHash } from "crypto";
+import { serve } from "@hono/node-server";
+import app from "../src/index";
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -26,6 +28,35 @@ function hashToken(token: string): string {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let serverInstance: any = null;
+
+async function startServerIfNeeded(): Promise<void> {
+  const url = new URL(PROVIDER_BASE_URL);
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    const port = parseInt(url.port || "3000", 10);
+    try {
+      const res = await fetch(`${PROVIDER_BASE_URL}/health`, { signal: AbortSignal.timeout(1000) });
+      if (res.ok) {
+        console.log(`Server already running at ${PROVIDER_BASE_URL}`);
+        return;
+      }
+    } catch {
+      // Server not running yet
+    }
+
+    console.log(`🚀 Starting server on port ${port}...`);
+    await new Promise<void>((resolve) => {
+      serverInstance = serve({
+        fetch: app.fetch,
+        port,
+      }, () => {
+        console.log(`✅ Server started on ${PROVIDER_BASE_URL}`);
+        resolve();
+      });
+    });
+  }
+}
 
 const PACT_BROKER_URL = process.env.PACT_BROKER_URL || "http://localhost:9292";
 const PACT_BROKER_USERNAME = process.env.PACT_BROKER_USERNAME;
@@ -466,8 +497,9 @@ async function verifyProvider() {
   console.log(`Version: ${PROVIDER_VERSION}`);
   console.log(`Branch: ${PROVIDER_BRANCH}`);
 
-  // Initialize test data before verification
+  // Initialize test data and start local server before verification
   await initializeTestData();
+  await startServerIfNeeded();
 
   const stateHandlers: VerifierOptions["stateHandlers"] = {
     "API is healthy": async () => {
@@ -566,6 +598,8 @@ async function verifyProvider() {
     },
   };
 
+  const localPactFile = path.resolve(__dirname, "../pacts/instagram-ios-app-instagram-backend.json");
+
   const verifier = new Verifier({
     provider: "instagram-backend",
     providerBaseUrl: PROVIDER_BASE_URL,
@@ -575,6 +609,9 @@ async function verifyProvider() {
     publishVerificationResult: true,
     providerVersion: PROVIDER_VERSION,
     providerVersionTags: [PROVIDER_BRANCH, "latest"],
+    consumerVersionTags: ["main", "latest", "local", "develop"],
+    consumerVersionSelectors: [{ latest: true }],
+    pactUrls: [localPactFile],
     enablePending: true,
     includeWipPactsSince: "2024-01-01",
     stateHandlers,
@@ -591,10 +628,12 @@ async function verifyProvider() {
     const result = await verifier.verifyProvider();
     console.log("\n✅ Provider verification passed!");
     console.log(result);
+    if (serverInstance) serverInstance.close();
     await pool.end();
     process.exit(0);
   } catch (error) {
     console.error("\n❌ Provider verification failed:", error);
+    if (serverInstance) serverInstance.close();
     await pool.end();
     process.exit(1);
   }
@@ -603,12 +642,14 @@ async function verifyProvider() {
 // Handle graceful shutdown
 process.on("SIGINT", async () => {
   console.log("\n🛑 Received SIGINT, cleaning up...");
+  if (serverInstance) serverInstance.close();
   await pool.end();
   process.exit(1);
 });
 
 process.on("SIGTERM", async () => {
   console.log("\n🛑 Received SIGTERM, cleaning up...");
+  if (serverInstance) serverInstance.close();
   await pool.end();
   process.exit(1);
 });

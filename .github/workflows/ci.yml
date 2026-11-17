@@ -286,9 +286,9 @@ jobs:
 
       - name: Publish consumer contracts (from consumer CI)
         run: |
-          # In real setup, consumer (iOS app) publishes contracts
-          # Here we simulate by copying local pacts
-          echo "Consumer contracts should be published from consumer CI pipeline"
+          npm run pact:publish || true
+        env:
+          PACT_BROKER_URL: http://localhost:9292
 
       - name: Run provider contract verification
         run: npm run test:contract
