@@ -55,6 +55,41 @@ async function publishContracts() {
       const consumer = pact.consumer?.name || "instagram-ios-app";
       const provider = pact.provider?.name || "instagram-backend";
 
+      // Normalize non-JSON plain text regex bodies if serialized as stringified JSON
+      let modified = false;
+      if (Array.isArray(pact.interactions)) {
+        for (const it of pact.interactions) {
+          if (
+            it.response &&
+            typeof it.response.body === "string" &&
+            it.response.body.startsWith('{"pact:matcher:type":"regex"')
+          ) {
+            try {
+              const parsed = JSON.parse(it.response.body);
+              it.response.body = parsed.value;
+              const regex = parsed.regex.endsWith(".*") || parsed.regex.endsWith("[\\s\\S]*")
+                ? parsed.regex
+                : parsed.regex + "[\\s\\S]*";
+              it.response.matchingRules = it.response.matchingRules || {};
+              it.response.matchingRules.body = {
+                "$": {
+                  combine: "AND",
+                  matchers: [{ match: "regex", regex }],
+                },
+                "$.body": {
+                  combine: "AND",
+                  matchers: [{ match: "regex", regex }],
+                },
+              };
+              modified = true;
+            } catch {}
+          }
+        }
+      }
+      if (modified) {
+        fs.writeFileSync(filePath, JSON.stringify(pact, null, 2) + "\n");
+      }
+
       console.log(`Publishing ${file} (${consumer} -> ${provider})...`);
 
       // 1. Publish Pact
@@ -65,7 +100,7 @@ async function publishContracts() {
           "Content-Type": "application/json",
           ...authHeaders,
         },
-        body: content,
+        body: JSON.stringify(pact),
       });
 
       if (!pubRes.ok && pubRes.status !== 200 && pubRes.status !== 201) {

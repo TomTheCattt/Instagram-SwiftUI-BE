@@ -11,6 +11,7 @@
 
 import { Verifier, VerifierOptions } from "@pact-foundation/pact";
 import * as path from "path";
+import * as fs from "fs";
 import { fileURLToPath } from "url";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -649,6 +650,45 @@ async function verifyProvider() {
   };
 
   const localPactFile = path.resolve(__dirname, "../pacts/instagram-ios-app-instagram-backend.json");
+
+  // Ensure local pact file has normalized plain-text regex matchers if present
+  if (fs.existsSync(localPactFile)) {
+    try {
+      const content = fs.readFileSync(localPactFile, "utf-8");
+      const pact = JSON.parse(content);
+      let modified = false;
+      if (Array.isArray(pact.interactions)) {
+        for (const it of pact.interactions) {
+          if (
+            it.response &&
+            typeof it.response.body === "string" &&
+            it.response.body.startsWith('{"pact:matcher:type":"regex"')
+          ) {
+            const parsed = JSON.parse(it.response.body);
+            it.response.body = parsed.value;
+            const regex = parsed.regex.endsWith(".*") || parsed.regex.endsWith("[\\s\\S]*")
+              ? parsed.regex
+              : parsed.regex + "[\\s\\S]*";
+            it.response.matchingRules = it.response.matchingRules || {};
+            it.response.matchingRules.body = {
+              "$": {
+                combine: "AND",
+                matchers: [{ match: "regex", regex }],
+              },
+              "$.body": {
+                combine: "AND",
+                matchers: [{ match: "regex", regex }],
+              },
+            };
+            modified = true;
+          }
+        }
+      }
+      if (modified) {
+        fs.writeFileSync(localPactFile, JSON.stringify(pact, null, 2) + "\n");
+      }
+    } catch {}
+  }
 
   const verifierOptions: VerifierOptions = {
     provider: "instagram-backend",

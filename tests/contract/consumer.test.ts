@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { PactV3, MatchersV3 } from "@pact-foundation/pact";
 import * as path from "path";
+import * as fs from "fs";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,7 +44,50 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
   };
 
   beforeAll(() => provider.setup());
-  afterAll(() => provider.pact.writePactFile(PACT_DIR));
+  afterAll(() => {
+    provider.pact.writePactFile(PACT_DIR);
+
+    // Normalize pact file: fix non-JSON plain text body matchers that Pact V3 FFI serializes as stringified JSON literals
+    const pactFile = path.join(PACT_DIR, "instagram-ios-app-instagram-backend.json");
+    if (fs.existsSync(pactFile)) {
+      try {
+        const pact = JSON.parse(fs.readFileSync(pactFile, "utf-8"));
+        let updated = false;
+        if (Array.isArray(pact.interactions)) {
+          for (const it of pact.interactions) {
+            if (
+              it.response &&
+              typeof it.response.body === "string" &&
+              it.response.body.startsWith('{"pact:matcher:type":"regex"')
+            ) {
+              const parsed = JSON.parse(it.response.body);
+              it.response.body = parsed.value;
+              const regex = parsed.regex.endsWith(".*") || parsed.regex.endsWith("[\\s\\S]*")
+                ? parsed.regex
+                : parsed.regex + "[\\s\\S]*";
+              it.response.matchingRules = it.response.matchingRules || {};
+              it.response.matchingRules.body = {
+                "$": {
+                  combine: "AND",
+                  matchers: [{ match: "regex", regex }],
+                },
+                "$.body": {
+                  combine: "AND",
+                  matchers: [{ match: "regex", regex }],
+                },
+              };
+              updated = true;
+            }
+          }
+        }
+        if (updated) {
+          fs.writeFileSync(pactFile, JSON.stringify(pact, null, 2) + "\n");
+        }
+      } catch (err) {
+        console.error("Failed to post-process pact file:", err);
+      }
+    }
+  });
 
   describe("Health & Metrics", () => {
     it("GET /health", async () => {
@@ -86,7 +130,7 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
           },
           body: term({
             generate: "# HELP http_requests_total Total number of HTTP requests\n# TYPE http_requests_total counter\nhttp_requests_total{method=\"GET\",endpoint=\"/metrics\"} 1\n",
-            matcher: "^# HELP http_requests_total",
+            matcher: "^# HELP http_requests_total[\\s\\S]*",
           }),
         },
       });

@@ -15,11 +15,33 @@
         "path": "/metrics"
       },
       "response": {
-        "body": "{\"pact:matcher:type\":\"regex\",\"regex\":\"^# HELP http_requests_total\",\"value\":\"# HELP http_requests_total Total number of HTTP requests\\n# TYPE http_requests_total counter\\nhttp_requests_total{method=\\\"GET\\\",endpoint=\\\"/metrics\\\"} 1\\n\"}",
+        "body": "# HELP http_requests_total Total number of HTTP requests\n# TYPE http_requests_total counter\nhttp_requests_total{method=\"GET\",endpoint=\"/metrics\"} 1\n",
         "headers": {
           "Content-Type": "text/plain; version=0.0.4; charset=utf-8"
         },
-        "status": 200
+        "status": 200,
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^# HELP http_requests_total[\\s\\S]*"
+                }
+              ]
+            },
+            "$.body": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^# HELP http_requests_total[\\s\\S]*"
+                }
+              ]
+            }
+          }
+        }
       }
     },
     {
