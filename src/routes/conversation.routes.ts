@@ -25,7 +25,7 @@ const sendMessageSchema = z.object({
   mediaUrl: z.string().url().optional(),
   mediaThumbnail: z.string().url().optional(),
   mediaDuration: z.number().optional(),
-  mediaMetadata: z.record(z.any()).optional(),
+  mediaMetadata: z.record(z.string(), z.any()).optional(),
   referenceId: z.string().optional(),
   replyToId: z.string().optional(),
   isEphemeral: z.boolean().optional(),

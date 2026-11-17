@@ -31,7 +31,7 @@ const createCallSchema = z.object({
   conversationId: z.string().uuid().optional(),
   maxParticipants: z.number().min(2).max(50).optional(),
   isRecording: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 const joinCallSchema = z.object({

@@ -50,7 +50,7 @@ const callEventSchema = z.object({
   calleeId: z.string().uuid(),
   callerId: z.string().uuid(),
   eventType: z.enum(["accepted", "declined", "missed", "ended", "failed"]),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 const iceServersSchema = z.object({
@@ -404,7 +404,7 @@ callkitRouter.post("/call-event", zValidator("json", z.object({
   calleeId: z.string().uuid(),
   callerId: z.string().uuid(),
   eventType: z.enum(["accepted", "declined", "missed", "ended", "failed"]),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })), async (c) => {
   const data = c.req.valid("json");
 

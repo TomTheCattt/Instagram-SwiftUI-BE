@@ -4,6 +4,20 @@
   },
   "interactions": [
     {
+      "description": "a request for Prometheus metrics",
+      "request": {
+        "method": "GET",
+        "path": "/metrics"
+      },
+      "response": {
+        "body": "{\"generate\":\"# HELP http_requests_total Total number of HTTP requests\\n# TYPE http_requests_total counter\\nhttp_requests_total{method=\\\"GET\\\",endpoint=\\\"/metrics\\\"} 1\\n\",\"matcher\":\"^# HELP http_requests_total\"}",
+        "headers": {
+          "Content-Type": "text/plain; version=0.0.4; charset=utf-8"
+        },
+        "status": 200
+      }
+    },
+    {
       "description": "a request for health check",
       "request": {
         "method": "GET",
@@ -54,29 +68,15 @@
       }
     },
     {
-      "description": "a request for Prometheus metrics",
-      "request": {
-        "method": "GET",
-        "path": "/metrics"
-      },
-      "response": {
-        "body": "{\"generate\":\"# HELP http_requests_total Total number of HTTP requests\\n# TYPE http_requests_total counter\\nhttp_requests_total{method=\\\"GET\\\",endpoint=\\\"/metrics\\\"} 1\\n\",\"matcher\":\"^# HELP http_requests_total\"}",
-        "headers": {
-          "Content-Type": "text/plain; version=0.0.4; charset=utf-8"
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to register a new user",
+      "description": "a request for presigned upload URL",
       "request": {
         "body": {
-          "displayName": "Test User",
-          "email": "test@example.com",
-          "password": "SecurePass123!",
-          "username": "testuser"
+          "bucket": "uploads",
+          "contentType": "image/jpeg",
+          "filename": "photo.jpg"
         },
         "headers": {
+          "Authorization": "Bearer valid_access_token",
           "Content-Type": "application/json"
         },
         "matchingRules": {
@@ -92,31 +92,128 @@
           }
         },
         "method": "POST",
-        "path": "/v1/auth/register"
+        "path": "/v1/upload/presigned"
       },
       "response": {
         "body": {
           "data": {
-            "accessToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
             "expiresIn": 3600,
-            "refreshToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
-            "tokenType": "Bearer",
-            "user": {
-              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/default.png\",\"matcher\":\"^https://\"}",
+            "fields": {
+              "key": "uploads/user123/abc123.jpg",
+              "policy": "{\"generate\":\"eyJleHBpcmF0aW9uIjoiMjAyNC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbXX0=\",\"matcher\":\"^eyJ\"}",
+              "x-amz-algorithm": "AWS4-HMAC-SHA256",
+              "x-amz-credential": "AKIA...",
+              "x-amz-date": "20240101T000000Z",
+              "x-amz-signature": "abc123..."
+            },
+            "fileUrl": "{\"generate\":\"https://storage.example.com/uploads/user123/abc123.jpg\",\"matcher\":\"^https://\"}",
+            "uploadUrl": "{\"generate\":\"https://storage.example.com/uploads/abc123?X-Amz-Algorithm=AWS4-HMAC-SHA256...\",\"matcher\":\"^https://\"}"
+          },
+          "success": true
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.fields": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to create a new conversation",
+      "request": {
+        "body": {
+          "participantIds": [
+            "e2490de5-5bd3-43d5-b7c4-526e33f71304"
+          ],
+          "type": "direct"
+        },
+        "generators": {
+          "body": {
+            "$.participantIds[0]": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Authorization": "Bearer valid_access_token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.participantIds[0]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/v1/conversations"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "conversation": {
               "createdAt": "2024-01-01T00:00:00Z",
-              "displayName": "Test User",
-              "email": "test@example.com",
               "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "isPrivate": false,
-              "isVerified": false,
-              "username": "testuser"
+              "participants": [
+                {
+                  "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/friend.jpg\",\"matcher\":\"^https://\"}",
+                  "displayName": "Friend Name",
+                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                  "username": "friend"
+                }
+              ],
+              "type": "direct"
             }
           },
           "success": true
         },
         "generators": {
           "body": {
-            "$.data.user.id": {
+            "$.data.conversation.id": {
+              "type": "Uuid"
+            },
+            "$.data.conversation.participants[*].id": {
               "type": "Uuid"
             }
           }
@@ -142,7 +239,7 @@
                 }
               ]
             },
-            "$.data.user": {
+            "$.data.conversation": {
               "combine": "AND",
               "matchers": [
                 {
@@ -150,7 +247,7 @@
                 }
               ]
             },
-            "$.data.user.createdAt": {
+            "$.data.conversation.createdAt": {
               "combine": "AND",
               "matchers": [
                 {
@@ -159,7 +256,33 @@
                 }
               ]
             },
-            "$.data.user.id": {
+            "$.data.conversation.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.conversation.participants": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.conversation.participants[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.conversation.participants[*].id": {
               "combine": "AND",
               "matchers": [
                 {
@@ -171,567 +294,6 @@
           }
         },
         "status": 201
-      }
-    },
-    {
-      "description": "a request to login with valid credentials",
-      "request": {
-        "body": {
-          "email": "test@example.com",
-          "password": "SecurePass123!"
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "method": "POST",
-        "path": "/v1/auth/login"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "accessToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
-            "expiresIn": 3600,
-            "refreshToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
-            "tokenType": "Bearer",
-            "user": {
-              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/default.png\",\"matcher\":\"^https://\"}",
-              "createdAt": "2024-01-01T00:00:00Z",
-              "displayName": "Test User",
-              "email": "test@example.com",
-              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "isPrivate": false,
-              "isVerified": true,
-              "username": "testuser"
-            }
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.user.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user.createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to login with invalid credentials",
-      "request": {
-        "body": {
-          "email": "test@example.com",
-          "password": "WrongPassword123!"
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "method": "POST",
-        "path": "/v1/auth/login"
-      },
-      "response": {
-        "body": {
-          "error": "INVALID_CREDENTIALS",
-          "message": "Invalid email or password",
-          "success": false
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "status": 401
-      }
-    },
-    {
-      "description": "a request to refresh access token",
-      "request": {
-        "body": {
-          "refreshToken": "old_refresh_token"
-        },
-        "headers": {
-          "Authorization": "Bearer old_refresh_token",
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "method": "POST",
-        "path": "/v1/auth/refresh"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "accessToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
-            "expiresIn": 3600,
-            "refreshToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
-            "tokenType": "Bearer"
-          },
-          "success": true
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to logout",
-      "request": {
-        "body": {
-          "refreshToken": "valid_refresh_token"
-        },
-        "headers": {
-          "Authorization": "Bearer valid_access_token",
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "method": "POST",
-        "path": "/v1/auth/logout"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "message": "Logged out successfully"
-          },
-          "success": true
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to get current user profile",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "GET",
-        "path": "/v1/user/me"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "user": {
-              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/user123.jpg\",\"matcher\":\"^https://\"}",
-              "bannerUrl": "{\"generate\":\"https://storage.example.com/banners/user123.jpg\",\"matcher\":\"^https://\"}",
-              "bio": "Test bio",
-              "createdAt": "2024-01-01T00:00:00Z",
-              "displayName": "Test User",
-              "email": "test@example.com",
-              "followersCount": 100,
-              "followingCount": 50,
-              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "isPrivate": false,
-              "isVerified": true,
-              "postsCount": 25,
-              "updatedAt": "2024-01-01T00:00:00Z",
-              "username": "testuser"
-            }
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.user.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user.createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.user.updatedAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to update user profile",
-      "request": {
-        "body": {
-          "bio": "Updated bio",
-          "displayName": "Updated Name",
-          "website": "https://example.com"
-        },
-        "headers": {
-          "Authorization": "Bearer valid_access_token",
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "method": "PATCH",
-        "path": "/v1/user/me"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "user": {
-              "bio": "Updated bio",
-              "displayName": "Updated Name",
-              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "updatedAt": "2024-01-01T00:00:00Z",
-              "username": "testuser",
-              "website": "https://example.com"
-            }
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.user.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.user.updatedAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to get public user profile",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "GET",
-        "path": "/v1/users/testuser"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "user": {
-              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/user123.jpg\",\"matcher\":\"^https://\"}",
-              "bannerUrl": "{\"generate\":\"https://storage.example.com/banners/user123.jpg\",\"matcher\":\"^https://\"}",
-              "bio": "Test bio",
-              "createdAt": "2024-01-01T00:00:00Z",
-              "displayName": "Test User",
-              "followersCount": 100,
-              "followingCount": 50,
-              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "isFollowedBy": false,
-              "isFollowing": false,
-              "isPrivate": false,
-              "isVerified": true,
-              "postsCount": 25,
-              "username": "testuser"
-            }
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.user.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.user.createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
       }
     },
     {
@@ -971,634 +533,6 @@
       }
     },
     {
-      "description": "a request to get a single post",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "GET",
-        "path": ""
-      },
-      "response": {
-        "body": {
-          "data": {
-            "post": {
-              "caption": "Test post caption",
-              "commentsCount": 5,
-              "createdAt": "2024-01-01T00:00:00Z",
-              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "isLiked": false,
-              "isSaved": false,
-              "likesCount": 42,
-              "location": {
-                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                "latitude": 37.7749,
-                "longitude": -122.4194,
-                "name": "San Francisco, CA"
-              },
-              "media": [
-                {
-                  "height": 1080,
-                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                  "thumbnailUrl": "{\"generate\":\"https://storage.example.com/posts/thumb_abc123.jpg\",\"matcher\":\"^https://\"}",
-                  "type": "image",
-                  "url": "{\"generate\":\"https://storage.example.com/posts/abc123.jpg\",\"matcher\":\"^https://\"}",
-                  "width": 1080
-                }
-              ],
-              "savesCount": 3,
-              "updatedAt": "2024-01-01T00:00:00Z",
-              "user": {
-                "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/user123.jpg\",\"matcher\":\"^https://\"}",
-                "displayName": "Test User",
-                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                "isVerified": true,
-                "username": "testuser"
-              }
-            }
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.post.id": {
-              "type": "Uuid"
-            },
-            "$.data.post.location.id": {
-              "type": "Uuid"
-            },
-            "$.data.post.media[*].id": {
-              "type": "Uuid"
-            },
-            "$.data.post.user.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.post": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.post.createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.post.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.post.location": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.post.location.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.post.media": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.post.media[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.post.media[*].id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.post.updatedAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.post.user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.post.user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to get home feed",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "GET",
-        "path": "/v1/posts/feed",
-        "query": {
-          "pact:matcher:type": [
-            "type"
-          ],
-          "value": [
-            "{\"cursor\":\"eyJpZCI6IjEyMyJ9\",\"limit\":\"20\"}"
-          ]
-        }
-      },
-      "response": {
-        "body": {
-          "data": {
-            "hasMore": true,
-            "nextCursor": "{\"generate\":\"eyJpZCI6IjQ1NiJ9\",\"matcher\":\"^eyJ\"}",
-            "posts": [
-              {
-                "caption": "Feed post",
-                "commentsCount": 2,
-                "createdAt": "2024-01-01T00:00:00Z",
-                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                "isLiked": false,
-                "likesCount": 10,
-                "media": [
-                  {
-                    "height": 1080,
-                    "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                    "thumbnailUrl": "{\"generate\":\"https://storage.example.com/posts/thumb_feed1.jpg\",\"matcher\":\"^https://\"}",
-                    "type": "image",
-                    "url": "{\"generate\":\"https://storage.example.com/posts/feed1.jpg\",\"matcher\":\"^https://\"}",
-                    "width": 1080
-                  }
-                ],
-                "user": {
-                  "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/feed.jpg\",\"matcher\":\"^https://\"}",
-                  "displayName": "Feed User",
-                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                  "isVerified": false,
-                  "username": "feeduser"
-                }
-              }
-            ]
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.posts[*].id": {
-              "type": "Uuid"
-            },
-            "$.data.posts[*].media[*].id": {
-              "type": "Uuid"
-            },
-            "$.data.posts[*].user.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.posts": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.posts[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.posts[*].createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.posts[*].id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.posts[*].media": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.posts[*].media[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.posts[*].media[*].id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.posts[*].user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.posts[*].user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to like a post",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "POST",
-        "path": ""
-      },
-      "response": {
-        "body": {
-          "data": {
-            "isLiked": true,
-            "likesCount": 43
-          },
-          "success": true
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to unlike a post",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "DELETE",
-        "path": ""
-      },
-      "response": {
-        "body": {
-          "data": {
-            "isLiked": false,
-            "likesCount": 42
-          },
-          "success": true
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
-      "description": "a request to get reels feed",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "GET",
-        "path": "/v1/reels/feed",
-        "query": {
-          "pact:matcher:type": [
-            "type"
-          ],
-          "value": [
-            "{\"cursor\":\"eyJpZCI6IjEyMyJ9\",\"limit\":\"10\"}"
-          ]
-        }
-      },
-      "response": {
-        "body": {
-          "data": {
-            "hasMore": true,
-            "nextCursor": "{\"generate\":\"eyJpZCI6IjQ1NiJ9\",\"matcher\":\"^eyJ\"}",
-            "reels": [
-              {
-                "audio": {
-                  "artist": "Artist Name",
-                  "duration": 60,
-                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                  "title": "Trending Audio",
-                  "url": "{\"generate\":\"https://storage.example.com/audio/trending.mp3\",\"matcher\":\"^https://\"}"
-                },
-                "caption": "Amazing reel! 🎬",
-                "commentsCount": 50,
-                "createdAt": "2024-01-01T00:00:00Z",
-                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                "isLiked": false,
-                "isSaved": false,
-                "likesCount": 1000,
-                "sharesCount": 25,
-                "user": {
-                  "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/reel.jpg\",\"matcher\":\"^https://\"}",
-                  "displayName": "Reel Creator",
-                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                  "isVerified": true,
-                  "username": "reelcreator"
-                },
-                "video": {
-                  "duration": 30.5,
-                  "height": 1920,
-                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                  "thumbnailUrl": "{\"generate\":\"https://storage.example.com/reels/thumb_video123.jpg\",\"matcher\":\"^https://\"}",
-                  "url": "{\"generate\":\"https://storage.example.com/reels/video123.mp4\",\"matcher\":\"^https://\"}",
-                  "width": 1080
-                }
-              }
-            ]
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.reels[*].audio.id": {
-              "type": "Uuid"
-            },
-            "$.data.reels[*].id": {
-              "type": "Uuid"
-            },
-            "$.data.reels[*].user.id": {
-              "type": "Uuid"
-            },
-            "$.data.reels[*].video.id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.reels": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.reels[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.reels[*].audio": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.reels[*].audio.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.reels[*].createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.reels[*].id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.reels[*].user": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.reels[*].user.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.reels[*].video": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.reels[*].video.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
-      }
-    },
-    {
       "description": "a request to create a new reel",
       "request": {
         "body": {
@@ -1796,138 +730,6 @@
           }
         },
         "status": 201
-      }
-    },
-    {
-      "description": "a request to get stories feed",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer valid_access_token"
-        },
-        "method": "GET",
-        "path": "/v1/stories/feed"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "stories": [
-              {
-                "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/story.jpg\",\"matcher\":\"^https://\"}",
-                "displayName": "Story User",
-                "hasUnviewed": true,
-                "isVerified": false,
-                "items": [
-                  {
-                    "createdAt": "2024-01-01T00:00:00Z",
-                    "duration": 5,
-                    "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                    "isViewed": false,
-                    "mediaUrl": "{\"generate\":\"https://storage.example.com/stories/item1.jpg\",\"matcher\":\"^https://\"}",
-                    "type": "image"
-                  }
-                ],
-                "userId": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                "username": "storyuser"
-              }
-            ]
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.stories[*].items[*].id": {
-              "type": "Uuid"
-            },
-            "$.data.stories[*].userId": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.stories": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.stories[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.stories[*].items": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.stories[*].items[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.stories[*].items[*].createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.stories[*].items[*].id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.stories[*].userId": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 200
       }
     },
     {
@@ -2151,6 +953,192 @@
       }
     },
     {
+      "description": "a request to get a single post",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "GET",
+        "path": ""
+      },
+      "response": {
+        "body": {
+          "data": {
+            "post": {
+              "caption": "Test post caption",
+              "commentsCount": 5,
+              "createdAt": "2024-01-01T00:00:00Z",
+              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "isLiked": false,
+              "isSaved": false,
+              "likesCount": 42,
+              "location": {
+                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                "latitude": 37.7749,
+                "longitude": -122.4194,
+                "name": "San Francisco, CA"
+              },
+              "media": [
+                {
+                  "height": 1080,
+                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                  "thumbnailUrl": "{\"generate\":\"https://storage.example.com/posts/thumb_abc123.jpg\",\"matcher\":\"^https://\"}",
+                  "type": "image",
+                  "url": "{\"generate\":\"https://storage.example.com/posts/abc123.jpg\",\"matcher\":\"^https://\"}",
+                  "width": 1080
+                }
+              ],
+              "savesCount": 3,
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "user": {
+                "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/user123.jpg\",\"matcher\":\"^https://\"}",
+                "displayName": "Test User",
+                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                "isVerified": true,
+                "username": "testuser"
+              }
+            }
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.post.id": {
+              "type": "Uuid"
+            },
+            "$.data.post.location.id": {
+              "type": "Uuid"
+            },
+            "$.data.post.media[*].id": {
+              "type": "Uuid"
+            },
+            "$.data.post.user.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.post": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.post.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.post.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.post.location": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.post.location.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.post.media": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.post.media[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.post.media[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.post.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.post.user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.post.user.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
       "description": "a request to get conversation list",
       "request": {
         "headers": {
@@ -2339,157 +1327,6 @@
       }
     },
     {
-      "description": "a request to create a new conversation",
-      "request": {
-        "body": {
-          "participantIds": [
-            "e2490de5-5bd3-43d5-b7c4-526e33f71304"
-          ],
-          "type": "direct"
-        },
-        "generators": {
-          "body": {
-            "$.participantIds[0]": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Authorization": "Bearer valid_access_token",
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.participantIds[0]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "method": "POST",
-        "path": "/v1/conversations"
-      },
-      "response": {
-        "body": {
-          "data": {
-            "conversation": {
-              "createdAt": "2024-01-01T00:00:00Z",
-              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "participants": [
-                {
-                  "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/friend.jpg\",\"matcher\":\"^https://\"}",
-                  "displayName": "Friend Name",
-                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-                  "username": "friend"
-                }
-              ],
-              "type": "direct"
-            }
-          },
-          "success": true
-        },
-        "generators": {
-          "body": {
-            "$.data.conversation.id": {
-              "type": "Uuid"
-            },
-            "$.data.conversation.participants[*].id": {
-              "type": "Uuid"
-            }
-          }
-        },
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.conversation": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.conversation.createdAt": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
-                  "match": "datetime"
-                }
-              ]
-            },
-            "$.data.conversation.id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.conversation.participants": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type",
-                  "min": 1
-                }
-              ]
-            },
-            "$.data.conversation.participants[*]": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.data.conversation.participants[*].id": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            }
-          }
-        },
-        "status": 201
-      }
-    },
-    {
       "description": "a request to get conversation messages",
       "request": {
         "headers": {
@@ -2668,59 +1505,39 @@
       }
     },
     {
-      "description": "a request to send a message",
+      "description": "a request to get current user profile",
       "request": {
-        "body": {
-          "content": "Hello there!",
-          "replyToId": null,
-          "type": "text"
-        },
         "headers": {
-          "Authorization": "Bearer valid_access_token",
-          "Content-Type": "application/json"
+          "Authorization": "Bearer valid_access_token"
         },
-        "matchingRules": {
-          "body": {
-            "$": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            }
-          }
-        },
-        "method": "POST",
-        "path": ""
+        "method": "GET",
+        "path": "/v1/user/me"
       },
       "response": {
         "body": {
           "data": {
-            "message": {
-              "content": "Hello there!",
-              "conversationId": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+            "user": {
+              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/user123.jpg\",\"matcher\":\"^https://\"}",
+              "bannerUrl": "{\"generate\":\"https://storage.example.com/banners/user123.jpg\",\"matcher\":\"^https://\"}",
+              "bio": "Test bio",
               "createdAt": "2024-01-01T00:00:00Z",
+              "displayName": "Test User",
+              "email": "test@example.com",
+              "followersCount": 100,
+              "followingCount": 50,
               "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "isDeleted": false,
-              "isEdited": false,
-              "reactions": [],
-              "replyToId": null,
-              "senderId": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-              "type": "text"
+              "isPrivate": false,
+              "isVerified": true,
+              "postsCount": 25,
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "username": "testuser"
             }
           },
           "success": true
         },
         "generators": {
           "body": {
-            "$.data.message.conversationId": {
-              "type": "Uuid"
-            },
-            "$.data.message.id": {
-              "type": "Uuid"
-            },
-            "$.data.message.senderId": {
+            "$.data.user.id": {
               "type": "Uuid"
             }
           }
@@ -2746,7 +1563,7 @@
                 }
               ]
             },
-            "$.data.message": {
+            "$.data.user": {
               "combine": "AND",
               "matchers": [
                 {
@@ -2754,16 +1571,7 @@
                 }
               ]
             },
-            "$.data.message.conversationId": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "regex",
-                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                }
-              ]
-            },
-            "$.data.message.createdAt": {
+            "$.data.user.createdAt": {
               "combine": "AND",
               "matchers": [
                 {
@@ -2772,7 +1580,7 @@
                 }
               ]
             },
-            "$.data.message.id": {
+            "$.data.user.id": {
               "combine": "AND",
               "matchers": [
                 {
@@ -2781,7 +1589,176 @@
                 }
               ]
             },
-            "$.data.message.senderId": {
+            "$.data.user.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to get home feed",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "GET",
+        "path": "/v1/posts/feed",
+        "query": {
+          "pact:matcher:type": [
+            "type"
+          ],
+          "value": [
+            "{\"cursor\":\"eyJpZCI6IjEyMyJ9\",\"limit\":\"20\"}"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "data": {
+            "hasMore": true,
+            "nextCursor": "{\"generate\":\"eyJpZCI6IjQ1NiJ9\",\"matcher\":\"^eyJ\"}",
+            "posts": [
+              {
+                "caption": "Feed post",
+                "commentsCount": 2,
+                "createdAt": "2024-01-01T00:00:00Z",
+                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                "isLiked": false,
+                "likesCount": 10,
+                "media": [
+                  {
+                    "height": 1080,
+                    "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                    "thumbnailUrl": "{\"generate\":\"https://storage.example.com/posts/thumb_feed1.jpg\",\"matcher\":\"^https://\"}",
+                    "type": "image",
+                    "url": "{\"generate\":\"https://storage.example.com/posts/feed1.jpg\",\"matcher\":\"^https://\"}",
+                    "width": 1080
+                  }
+                ],
+                "user": {
+                  "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/feed.jpg\",\"matcher\":\"^https://\"}",
+                  "displayName": "Feed User",
+                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                  "isVerified": false,
+                  "username": "feeduser"
+                }
+              }
+            ]
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.posts[*].id": {
+              "type": "Uuid"
+            },
+            "$.data.posts[*].media[*].id": {
+              "type": "Uuid"
+            },
+            "$.data.posts[*].user.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.posts": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.posts[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.posts[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.posts[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.posts[*].media": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.posts[*].media[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.posts[*].media[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.posts[*].user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.posts[*].user.id": {
               "combine": "AND",
               "matchers": [
                 {
@@ -2792,7 +1769,7 @@
             }
           }
         },
-        "status": 201
+        "status": 200
       }
     },
     {
@@ -2951,6 +1928,669 @@
       }
     },
     {
+      "description": "a request to get public user profile",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "GET",
+        "path": "/v1/users/testuser"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "user": {
+              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/user123.jpg\",\"matcher\":\"^https://\"}",
+              "bannerUrl": "{\"generate\":\"https://storage.example.com/banners/user123.jpg\",\"matcher\":\"^https://\"}",
+              "bio": "Test bio",
+              "createdAt": "2024-01-01T00:00:00Z",
+              "displayName": "Test User",
+              "followersCount": 100,
+              "followingCount": 50,
+              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "isFollowedBy": false,
+              "isFollowing": false,
+              "isPrivate": false,
+              "isVerified": true,
+              "postsCount": 25,
+              "username": "testuser"
+            }
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.user.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.user.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to get reels feed",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "GET",
+        "path": "/v1/reels/feed",
+        "query": {
+          "pact:matcher:type": [
+            "type"
+          ],
+          "value": [
+            "{\"cursor\":\"eyJpZCI6IjEyMyJ9\",\"limit\":\"10\"}"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "data": {
+            "hasMore": true,
+            "nextCursor": "{\"generate\":\"eyJpZCI6IjQ1NiJ9\",\"matcher\":\"^eyJ\"}",
+            "reels": [
+              {
+                "audio": {
+                  "artist": "Artist Name",
+                  "duration": 60,
+                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                  "title": "Trending Audio",
+                  "url": "{\"generate\":\"https://storage.example.com/audio/trending.mp3\",\"matcher\":\"^https://\"}"
+                },
+                "caption": "Amazing reel! 🎬",
+                "commentsCount": 50,
+                "createdAt": "2024-01-01T00:00:00Z",
+                "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                "isLiked": false,
+                "isSaved": false,
+                "likesCount": 1000,
+                "sharesCount": 25,
+                "user": {
+                  "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/reel.jpg\",\"matcher\":\"^https://\"}",
+                  "displayName": "Reel Creator",
+                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                  "isVerified": true,
+                  "username": "reelcreator"
+                },
+                "video": {
+                  "duration": 30.5,
+                  "height": 1920,
+                  "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                  "thumbnailUrl": "{\"generate\":\"https://storage.example.com/reels/thumb_video123.jpg\",\"matcher\":\"^https://\"}",
+                  "url": "{\"generate\":\"https://storage.example.com/reels/video123.mp4\",\"matcher\":\"^https://\"}",
+                  "width": 1080
+                }
+              }
+            ]
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.reels[*].audio.id": {
+              "type": "Uuid"
+            },
+            "$.data.reels[*].id": {
+              "type": "Uuid"
+            },
+            "$.data.reels[*].user.id": {
+              "type": "Uuid"
+            },
+            "$.data.reels[*].video.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.reels": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.reels[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.reels[*].audio": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.reels[*].audio.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.reels[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.reels[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.reels[*].user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.reels[*].user.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.reels[*].video": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.reels[*].video.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to get stories feed",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "GET",
+        "path": "/v1/stories/feed"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "stories": [
+              {
+                "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/story.jpg\",\"matcher\":\"^https://\"}",
+                "displayName": "Story User",
+                "hasUnviewed": true,
+                "isVerified": false,
+                "items": [
+                  {
+                    "createdAt": "2024-01-01T00:00:00Z",
+                    "duration": 5,
+                    "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                    "isViewed": false,
+                    "mediaUrl": "{\"generate\":\"https://storage.example.com/stories/item1.jpg\",\"matcher\":\"^https://\"}",
+                    "type": "image"
+                  }
+                ],
+                "userId": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+                "username": "storyuser"
+              }
+            ]
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.stories[*].items[*].id": {
+              "type": "Uuid"
+            },
+            "$.data.stories[*].userId": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.stories": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.stories[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.stories[*].items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.data.stories[*].items[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.stories[*].items[*].createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.stories[*].items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.stories[*].userId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to like a post",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "POST",
+        "path": ""
+      },
+      "response": {
+        "body": {
+          "data": {
+            "isLiked": true,
+            "likesCount": 43
+          },
+          "success": true
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to login with invalid credentials",
+      "request": {
+        "body": {
+          "email": "test@example.com",
+          "password": "WrongPassword123!"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/v1/auth/login"
+      },
+      "response": {
+        "body": {
+          "error": "INVALID_CREDENTIALS",
+          "message": "Invalid email or password",
+          "success": false
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 401
+      }
+    },
+    {
+      "description": "a request to login with valid credentials",
+      "request": {
+        "body": {
+          "email": "test@example.com",
+          "password": "SecurePass123!"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/v1/auth/login"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "accessToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
+            "expiresIn": 3600,
+            "refreshToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
+            "tokenType": "Bearer",
+            "user": {
+              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/default.png\",\"matcher\":\"^https://\"}",
+              "createdAt": "2024-01-01T00:00:00Z",
+              "displayName": "Test User",
+              "email": "test@example.com",
+              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "isPrivate": false,
+              "isVerified": true,
+              "username": "testuser"
+            }
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.user.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.user.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to logout",
+      "request": {
+        "body": {
+          "refreshToken": "valid_refresh_token"
+        },
+        "headers": {
+          "Authorization": "Bearer valid_access_token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/v1/auth/logout"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "message": "Logged out successfully"
+          },
+          "success": true
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
       "description": "a request to mark notification as read",
       "request": {
         "headers": {
@@ -3020,15 +2660,13 @@
       }
     },
     {
-      "description": "a request for presigned upload URL",
+      "description": "a request to refresh access token",
       "request": {
         "body": {
-          "bucket": "uploads",
-          "contentType": "image/jpeg",
-          "filename": "photo.jpg"
+          "refreshToken": "old_refresh_token"
         },
         "headers": {
-          "Authorization": "Bearer valid_access_token",
+          "Authorization": "Bearer old_refresh_token",
           "Content-Type": "application/json"
         },
         "matchingRules": {
@@ -3044,22 +2682,15 @@
           }
         },
         "method": "POST",
-        "path": "/v1/upload/presigned"
+        "path": "/v1/auth/refresh"
       },
       "response": {
         "body": {
           "data": {
+            "accessToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
             "expiresIn": 3600,
-            "fields": {
-              "key": "uploads/user123/abc123.jpg",
-              "policy": "{\"generate\":\"eyJleHBpcmF0aW9uIjoiMjAyNC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbXX0=\",\"matcher\":\"^eyJ\"}",
-              "x-amz-algorithm": "AWS4-HMAC-SHA256",
-              "x-amz-credential": "AKIA...",
-              "x-amz-date": "20240101T000000Z",
-              "x-amz-signature": "abc123..."
-            },
-            "fileUrl": "{\"generate\":\"https://storage.example.com/uploads/user123/abc123.jpg\",\"matcher\":\"^https://\"}",
-            "uploadUrl": "{\"generate\":\"https://storage.example.com/uploads/abc123?X-Amz-Algorithm=AWS4-HMAC-SHA256...\",\"matcher\":\"^https://\"}"
+            "refreshToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
+            "tokenType": "Bearer"
           },
           "success": true
         },
@@ -3083,8 +2714,27 @@
                   "match": "type"
                 }
               ]
-            },
-            "$.data.fields": {
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to register a new user",
+      "request": {
+        "body": {
+          "displayName": "Test User",
+          "email": "test@example.com",
+          "password": "SecurePass123!",
+          "username": "testuser"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
               "combine": "AND",
               "matchers": [
                 {
@@ -3094,7 +2744,86 @@
             }
           }
         },
-        "status": 200
+        "method": "POST",
+        "path": "/v1/auth/register"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "accessToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
+            "expiresIn": 3600,
+            "refreshToken": "{\"generate\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\"matcher\":\"^eyJ\"}",
+            "tokenType": "Bearer",
+            "user": {
+              "avatarUrl": "{\"generate\":\"https://storage.example.com/avatars/default.png\",\"matcher\":\"^https://\"}",
+              "createdAt": "2024-01-01T00:00:00Z",
+              "displayName": "Test User",
+              "email": "test@example.com",
+              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "isPrivate": false,
+              "isVerified": false,
+              "username": "testuser"
+            }
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.user.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.user.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
       }
     },
     {
@@ -3351,15 +3080,286 @@
         },
         "status": 200
       }
+    },
+    {
+      "description": "a request to send a message",
+      "request": {
+        "body": {
+          "content": "Hello there!",
+          "replyToId": null,
+          "type": "text"
+        },
+        "headers": {
+          "Authorization": "Bearer valid_access_token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": ""
+      },
+      "response": {
+        "body": {
+          "data": {
+            "message": {
+              "content": "Hello there!",
+              "conversationId": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "createdAt": "2024-01-01T00:00:00Z",
+              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "isDeleted": false,
+              "isEdited": false,
+              "reactions": [],
+              "replyToId": null,
+              "senderId": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "type": "text"
+            }
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.message.conversationId": {
+              "type": "Uuid"
+            },
+            "$.data.message.id": {
+              "type": "Uuid"
+            },
+            "$.data.message.senderId": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.message": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.message.conversationId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.message.createdAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            },
+            "$.data.message.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.message.senderId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "description": "a request to unlike a post",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer valid_access_token"
+        },
+        "method": "DELETE",
+        "path": ""
+      },
+      "response": {
+        "body": {
+          "data": {
+            "isLiked": false,
+            "likesCount": 42
+          },
+          "success": true
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to update user profile",
+      "request": {
+        "body": {
+          "bio": "Updated bio",
+          "displayName": "Updated Name",
+          "website": "https://example.com"
+        },
+        "headers": {
+          "Authorization": "Bearer valid_access_token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "PATCH",
+        "path": "/v1/user/me"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "user": {
+              "bio": "Updated bio",
+              "displayName": "Updated Name",
+              "id": "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+              "updatedAt": "2024-01-01T00:00:00Z",
+              "username": "testuser",
+              "website": "https://example.com"
+            }
+          },
+          "success": true
+        },
+        "generators": {
+          "body": {
+            "$.data.user.id": {
+              "type": "Uuid"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.data.user.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.data.user.updatedAt": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "format": "yyyy-MM-dd'T'HH:mm:ssXXX",
+                  "match": "datetime"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
     }
   ],
   "metadata": {
     "pact-js": {
-      "version": "15.0.1"
+      "version": "17.1.4"
     },
     "pactRust": {
-      "ffi": "0.4.28",
-      "models": "1.3.5"
+      "ffi": "0.5.8",
+      "models": "1.3.16"
     },
     "pactSpecification": {
       "version": "3.0.0"

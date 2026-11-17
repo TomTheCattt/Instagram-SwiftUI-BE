@@ -16,7 +16,7 @@ const createStorySchema = z.object({
     duration: z.number().positive().max(60).default(5),
     sortOrder: z.number().int().nonnegative(),
     stickerType: z.string().max(50).optional(),
-    stickerData: z.record(z.any()).optional(),
+    stickerData: z.record(z.string(), z.any()).optional(),
     thumbnailUrl: z.string().url().optional(),
   })).min(1).max(10),
 });
