@@ -9,6 +9,10 @@ on:
     # Run full test suite weekly on Sundays
     - cron: '0 2 * * 0'
 
+permissions:
+  contents: read
+  security-events: write
+
 env:
   NODE_VERSION: "24"
   NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
@@ -376,7 +380,8 @@ jobs:
           severity: 'HIGH,CRITICAL'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
 
