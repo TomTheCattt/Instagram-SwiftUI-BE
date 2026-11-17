@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17-alpine
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -107,14 +107,20 @@ jobs:
             sleep 2
           done
 
+      - name: Enable PostgreSQL extensions
+        run: |
+          PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
       - name: Run database migrations
-        run: npm run drizzle:push
+        run: npx drizzle-kit push --force
         env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
       - name: Run unit tests
         run: npm run test -- --run
         env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
           NODE_ENV: test
           BETTER_AUTH_SECRET: test-secret-for-ci
@@ -196,7 +202,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17-alpine
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -233,15 +239,21 @@ jobs:
             sleep 2
           done
 
+      - name: Enable PostgreSQL extensions
+        run: |
+          PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
       - name: Run database schema push
-        run: npx drizzle-kit push
+        run: npx drizzle-kit push --force
         env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
       - name: Debug - List database tables
         run: |
           PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "\dt"
         env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
       - name: Install Pact CLI

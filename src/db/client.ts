@@ -4,7 +4,7 @@ import { attachDatabasePool } from "@neon/functions";
 import * as schema from "./schema";
 
 // Use process.env directly since parseEnv types don't include function env vars
-const DATABASE_URL = process.env.DATABASE_URL!;
+const DATABASE_URL = process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED!;
 
 // Create PostgreSQL connection pool at module scope (reused across requests)
 export const pool = new Pool({
