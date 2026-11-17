@@ -106,12 +106,12 @@ jobs:
       - name: Run database migrations
         run: npm run drizzle:push
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
+          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
       - name: Run unit tests
         run: npm run test -- --run
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
+          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
           NODE_ENV: test
           BETTER_AUTH_SECRET: test-secret-for-ci
           BETTER_AUTH_URL: http://localhost:3000
@@ -232,7 +232,7 @@ jobs:
       - name: Run database migrations
         run: npm run drizzle:push
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
+          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
       - name: Install Pact CLI
         run: npm install -g @pact-foundation/pact-cli
@@ -258,7 +258,7 @@ jobs:
           PACT_BROKER_URL: http://localhost:9292
           PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
-          DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
+          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
           NODE_ENV: test
           BETTER_AUTH_SECRET: test-secret-for-ci
           BETTER_AUTH_URL: http://localhost:3000
