@@ -30,16 +30,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Debug environment
-        run: |
-          echo "Node version: $(node --version)"
-          echo "NPM version: $(npm --version)"
-          echo "Working directory: $(pwd)"
-          echo "Files in root:"
-          ls -la
-          echo "ESLint config exists: $(test -f eslint.config.js && echo YES || echo NO)"
-          cat eslint.config.js
-
       - name: Install dependencies
         run: npm ci
 

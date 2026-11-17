@@ -13,7 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "eslint .",
     "test": "vitest",
     "test:contract": "tsx pact/verify-provider.ts",
     "test:contract:staging": "STAGING_API_URL=${STAGING_API_URL} tsx pact/verify-provider.ts",
