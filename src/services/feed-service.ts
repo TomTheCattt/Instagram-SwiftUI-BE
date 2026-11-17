@@ -573,8 +573,8 @@ export class FeedService {
 
       return result;
     } catch (error) {
-      console.error('Failed to inject sponsored content:', error);
-      return organicItems; // Fallback to organic only
+      // Function may not exist in test/CI databases - fallback to organic only
+      return organicItems;
     }
   }
 

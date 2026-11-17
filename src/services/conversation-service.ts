@@ -169,7 +169,7 @@ export class ConversationService {
             'mediaUrl', m.media_url,
             'mediaThumbnail', m.media_thumbnail,
             'mediaDuration', m.media_duration,
-            'referenceId', m.reference_id,
+            'referenceId', m.media_metadata->>'referenceId',
             'replyToId', m.reply_to_id,
             'status', m.status,
             'createdAt', m.created_at,
@@ -481,8 +481,7 @@ export class ConversationService {
         mediaUrl: schema.messages.mediaUrl,
         mediaThumbnail: schema.messages.mediaThumbnail,
         mediaDuration: schema.messages.mediaDuration,
-        // @ts-expect-error - TypeScript can't infer referenceId from select columns
-        referenceId: schema.messages.referenceId,
+        referenceId: sql<string | null>`${schema.messages.mediaMetadata}->>'referenceId'`.as("reference_id"),
         replyToId: schema.messages.replyToId,
         status: schema.messages.status,
         isEdited: schema.messages.isEdited,
@@ -1232,8 +1231,7 @@ export class ConversationService {
         mediaUrl: schema.messages.mediaUrl,
         mediaThumbnail: schema.messages.mediaThumbnail,
         mediaDuration: schema.messages.mediaDuration,
-        // @ts-expect-error - TypeScript can't infer referenceId from select columns
-        referenceId: schema.messages.referenceId,
+        referenceId: sql<string | null>`${schema.messages.mediaMetadata}->>'referenceId'`.as("reference_id"),
         replyToId: schema.messages.replyToId,
         status: schema.messages.status,
         isEdited: schema.messages.isEdited,
