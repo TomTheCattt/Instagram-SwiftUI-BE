@@ -600,12 +600,10 @@ async function verifyProvider() {
 
   const localPactFile = path.resolve(__dirname, "../pacts/instagram-ios-app-instagram-backend.json");
 
-  const verifier = new Verifier({
+  const verifierOptions: VerifierOptions = {
     provider: "instagram-backend",
     providerBaseUrl: PROVIDER_BASE_URL,
     pactBrokerUrl: PACT_BROKER_URL,
-    pactBrokerUsername: PACT_BROKER_USERNAME,
-    pactBrokerPassword: PACT_BROKER_PASSWORD,
     publishVerificationResult: true,
     providerVersion: PROVIDER_VERSION,
     providerVersionTags: [PROVIDER_BRANCH, "latest"],
@@ -621,7 +619,15 @@ async function verifyProvider() {
       req.headers["x-pact-verification"] = "true";
       next();
     },
-  });
+  };
+
+  // Only pass credentials if explicitly configured with non-empty strings
+  if (PACT_BROKER_USERNAME && PACT_BROKER_PASSWORD) {
+    verifierOptions.pactBrokerUsername = PACT_BROKER_USERNAME;
+    verifierOptions.pactBrokerPassword = PACT_BROKER_PASSWORD;
+  }
+
+  const verifier = new Verifier(verifierOptions);
 
   try {
     console.log("\n📋 Starting provider verification...");

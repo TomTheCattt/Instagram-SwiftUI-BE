@@ -27,16 +27,19 @@ async function publishContracts() {
   console.log(`Version: ${CONSUMER_VERSION}`);
   console.log(`Branch: ${CONSUMER_BRANCH}`);
 
-  const opts = {
+  const opts: any = {
     pactFilesOrDirs: [PACT_DIR],
     pactBroker: PACT_BROKER_URL,
     consumerVersion: CONSUMER_VERSION,
     consumerVersionTags: [CONSUMER_BRANCH, "latest"],
-    brokerUsername: PACT_BROKER_USERNAME,
-    brokerPassword: PACT_BROKER_PASSWORD,
     retry: 3,
     retryInterval: 1000,
   };
+
+  if (PACT_BROKER_USERNAME && PACT_BROKER_PASSWORD) {
+    opts.brokerUsername = PACT_BROKER_USERNAME;
+    opts.brokerPassword = PACT_BROKER_PASSWORD;
+  }
 
   try {
     await publisher.publishPacts(opts);
