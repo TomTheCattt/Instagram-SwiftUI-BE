@@ -242,8 +242,10 @@ jobs:
       - name: Run database migrations
         run: |
           npx drizzle-kit migrate > migration.log 2>&1
+          EXIT_CODE=$?
           cat migration.log
-          echo "=== Migration exit code: $? ==="
+          echo "=== Migration exit code: $EXIT_CODE ==="
+          exit $EXIT_CODE
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
