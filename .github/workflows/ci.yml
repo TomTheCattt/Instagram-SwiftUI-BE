@@ -240,7 +240,7 @@ jobs:
           done
 
       - name: Run database migrations
-        run: npx drizzle-kit migrate
+        run: npx drizzle-kit migrate 2>&1
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
