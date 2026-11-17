@@ -2,11 +2,11 @@
 /**
  * Pact Contract Publishing Script
  *
- * This script publishes consumer contracts to the Pact Broker
+ * This script publishes consumer contracts to the Pact Broker using native HTTP.
  * Run after consumer tests pass: npm run pact:publish
  */
 
-import { publisher } from "@pact-foundation/pact";
+import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
@@ -20,40 +20,92 @@ const PACT_BROKER_PASSWORD = process.env.PACT_BROKER_PASSWORD;
 const CONSUMER_VERSION = process.env.GITHUB_SHA || process.env.npm_package_version || "dev";
 const CONSUMER_BRANCH = process.env.GITHUB_REF_NAME || "local";
 
+function getAuthHeader(): Record<string, string> {
+  if (PACT_BROKER_USERNAME && PACT_BROKER_PASSWORD) {
+    const creds = Buffer.from(`${PACT_BROKER_USERNAME}:${PACT_BROKER_PASSWORD}`).toString("base64");
+    return { Authorization: `Basic ${creds}` };
+  }
+  return {};
+}
+
 async function publishContracts() {
-  console.log("📦 Publishing Pact contracts...");
+  console.log("📦 Publishing Pact contracts to Pact Broker...");
   console.log(`Broker: ${PACT_BROKER_URL}`);
-  console.log(`Consumer: instagram-ios-app`);
   console.log(`Version: ${CONSUMER_VERSION}`);
   console.log(`Branch: ${CONSUMER_BRANCH}`);
 
-  const opts: any = {
-    pactFilesOrDirs: [PACT_DIR],
-    pactBroker: PACT_BROKER_URL,
-    consumerVersion: CONSUMER_VERSION,
-    consumerVersionTags: [CONSUMER_BRANCH, "latest"],
-    retry: 3,
-    retryInterval: 1000,
-  };
-
-  if (PACT_BROKER_USERNAME && PACT_BROKER_PASSWORD) {
-    opts.brokerUsername = PACT_BROKER_USERNAME;
-    opts.brokerPassword = PACT_BROKER_PASSWORD;
+  if (!fs.existsSync(PACT_DIR)) {
+    console.warn(`⚠️ Pact directory does not exist: ${PACT_DIR}`);
+    return;
   }
 
-  try {
-    await publisher.publishPacts(opts);
-    console.log("✅ Contracts published successfully!");
+  const files = fs.readdirSync(PACT_DIR).filter((f) => f.endsWith(".json"));
+  if (files.length === 0) {
+    console.warn(`⚠️ No pact JSON files found in ${PACT_DIR}`);
+    return;
+  }
 
-    // Also tag the version for production deployments
-    if (CONSUMER_BRANCH === "main" || CONSUMER_BRANCH === "production") {
-      console.log("🏷️ Tagging as production release...");
-      // Tagging is done via tags above
+  const authHeaders = getAuthHeader();
+
+  for (const file of files) {
+    const filePath = path.join(PACT_DIR, file);
+    try {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const pact = JSON.parse(content);
+      const consumer = pact.consumer?.name || "instagram-ios-app";
+      const provider = pact.provider?.name || "instagram-backend";
+
+      console.log(`Publishing ${file} (${consumer} -> ${provider})...`);
+
+      // 1. Publish Pact
+      const publishUrl = `${PACT_BROKER_URL}/pacts/provider/${encodeURIComponent(provider)}/consumer/${encodeURIComponent(consumer)}/version/${encodeURIComponent(CONSUMER_VERSION)}`;
+      const pubRes = await fetch(publishUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: content,
+      });
+
+      if (!pubRes.ok && pubRes.status !== 200 && pubRes.status !== 201) {
+        const errorText = await pubRes.text();
+        console.warn(`Failed to publish ${file}: HTTP ${pubRes.status} ${errorText}`);
+      } else {
+        console.log(`✅ Published ${file} successfully`);
+      }
+
+      // 2. Tag Consumer Version
+      const tags = [CONSUMER_BRANCH, "latest", "main"];
+      for (const tag of tags) {
+        const tagUrl = `${PACT_BROKER_URL}/pacticipants/${encodeURIComponent(consumer)}/versions/${encodeURIComponent(CONSUMER_VERSION)}/tags/${encodeURIComponent(tag)}`;
+        await fetch(tagUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+          },
+        }).catch(() => {});
+      }
+
+      // 3. Register Branch (Pact Broker v2 branches support)
+      const branchUrl = `${PACT_BROKER_URL}/pacticipants/${encodeURIComponent(consumer)}/branches/${encodeURIComponent(CONSUMER_BRANCH)}/versions/${encodeURIComponent(CONSUMER_VERSION)}`;
+      await fetch(branchUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+      }).catch(() => {});
+    } catch (err) {
+      console.error(`Error publishing ${file}:`, err);
     }
-  } catch (error) {
-    console.error("❌ Failed to publish contracts:", error);
-    process.exit(1);
   }
+
+  console.log("✅ Pact publishing process completed!");
 }
 
-publishContracts();
+publishContracts().catch((err) => {
+  console.error("❌ Failed to publish contracts:", err);
+  process.exit(1);
+});

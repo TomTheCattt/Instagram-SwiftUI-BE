@@ -6,10 +6,20 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const { like, eachLike, uuid, matcherValueOrString: term, datetime } = MatchersV3;
+const { like, eachLike, uuid } = MatchersV3;
 
-// ISO 8601 datetime matcher with example
-const iso8601DateTime = () => datetime("yyyy-MM-dd'T'HH:mm:ssXXX", "2024-01-01T00:00:00Z");
+// Pact V3 regex matcher for paths, strings, and patterns
+const term = (opts: { generate: string; matcher: string } | string) => {
+  if (typeof opts === "string") return opts;
+  return MatchersV3.regex(opts.matcher, opts.generate);
+};
+
+// ISO 8601 datetime matcher supporting optional milliseconds from JavaScript toISOString()
+const iso8601DateTime = () =>
+  MatchersV3.regex(
+    "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d(\\.\\d+)?([+-][0-2]\\d(:?[0-5]\\d)?|Z)$",
+    "2024-01-01T00:00:00.000Z"
+  );
 
 const PACT_DIR = path.resolve(__dirname, "../../pacts");
 const PROVIDER_BASE_URL = "http://localhost:3000";
@@ -22,6 +32,15 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
     dir: PACT_DIR,
     logLevel: "info",
   });
+
+  // Ensure 'state' string is converted to Pact V3 'states' array
+  const origAddInteraction = provider.addInteraction.bind(provider);
+  provider.addInteraction = function(interaction: any) {
+    if (interaction.state && !interaction.states) {
+      interaction.states = [{ description: interaction.state }];
+    }
+    return origAddInteraction(interaction);
+  };
 
   beforeAll(() => provider.setup());
   afterAll(() => provider.pact.writePactFile(PACT_DIR));
@@ -508,10 +527,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
         withRequest: {
           method: "GET",
           path: "/v1/posts/feed",
-          query: like({
+          query: {
             cursor: "eyJpZCI6IjEyMyJ9",
             limit: "20",
-          }),
+          },
           headers: {
             "Authorization": "Bearer valid_access_token",
           },
@@ -622,10 +641,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
         withRequest: {
           method: "GET",
           path: "/v1/reels/feed",
-          query: like({
+          query: {
             cursor: "eyJpZCI6IjEyMyJ9",
             limit: "10",
-          }),
+          },
           headers: {
             "Authorization": "Bearer valid_access_token",
           },
@@ -850,10 +869,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
         withRequest: {
           method: "GET",
           path: "/v1/conversations",
-          query: like({
+          query: {
             cursor: "eyJpZCI6IjEyMyJ9",
             limit: "20",
-          }),
+          },
           headers: {
             "Authorization": "Bearer valid_access_token",
           },
@@ -949,10 +968,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
         withRequest: {
           method: "GET",
           path: term({ generate: "/v1/conversations/abc123/messages", matcher: "^/v1/conversations/.*/messages$" }),
-          query: like({
+          query: {
             cursor: "eyJpZCI6IjEyMyJ9",
             limit: "50",
-          }),
+          },
           headers: {
             "Authorization": "Bearer valid_access_token",
           },
@@ -1046,10 +1065,10 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
         withRequest: {
           method: "GET",
           path: "/v1/notifications",
-          query: like({
+          query: {
             cursor: "eyJpZCI6IjEyMyJ9",
             limit: "20",
-          }),
+          },
           headers: {
             "Authorization": "Bearer valid_access_token",
           },
@@ -1174,11 +1193,11 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
         withRequest: {
           method: "GET",
           path: "/v1/search",
-          query: like({
+          query: {
             q: "instagram",
             type: "all",
             limit: "20",
-          }),
+          },
           headers: {
             "Authorization": "Bearer valid_access_token",
           },
