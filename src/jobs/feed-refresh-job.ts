@@ -29,6 +29,8 @@ async function refreshFeedMaterializedView(): Promise<void> {
     } catch (err: any) {
       if (err?.code === '55000' || err?.message?.includes('concurrently')) {
         await sql`REFRESH MATERIALIZED VIEW feed_items`;
+      } else if (err?.code === '42P01' || err?.message?.includes('feed_items')) {
+        console.log('[FeedRefresh] Materialized view feed_items does not exist, skipping refresh');
       } else {
         throw err;
       }

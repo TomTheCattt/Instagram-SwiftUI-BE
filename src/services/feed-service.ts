@@ -248,8 +248,65 @@ export class FeedService {
       `;
     }
 
-    const result = await db.execute(sql.raw(query));
-    return result.rows as unknown as FeedItem[];
+    try {
+      const result = await db.execute(sql.raw(query));
+      return result.rows as unknown as FeedItem[];
+    } catch (err: any) {
+      if (err?.code === "42P01" || err?.message?.includes("feed_items")) {
+        // Fallback to querying posts table directly when feed_items materialized view is absent
+        const fallbackQuery = `
+          SELECT
+            p.id as "postId",
+            p.author_id as "authorId",
+            p.caption,
+            p.location_name as "locationName",
+            p.location_lat as "locationLat",
+            p.location_lng as "locationLng",
+            p.likes_count as "likesCount",
+            p.comments_count as "commentsCount",
+            p.shares_count as "sharesCount",
+            p.saves_count as "savesCount",
+            p.views_count as "viewsCount",
+            p.is_sponsored as "isSponsored",
+            p.sponsor_user_id as "sponsorUserId",
+            p.audience,
+            p.close_friends_only as "closeFriendsOnly",
+            p.created_at as "createdAt",
+            p.updated_at as "updatedAt",
+            u.username,
+            u.full_name as "fullName",
+            u.avatar_url as "avatarUrl",
+            u.is_verified as "isVerified",
+            u.is_private as "isPrivate",
+            mi.url as "mediaUrl",
+            mi.thumbnail_url as "thumbnailUrl",
+            mi.type as "mediaType",
+            mi.width,
+            mi.height,
+            mi.duration,
+            COALESCE(mi.sort_order, 0) as "sortOrder",
+            (p.likes_count + p.comments_count * 2 + p.shares_count * 3 + p.saves_count * 4)::numeric as "engagementScore",
+            EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600 as "hoursSincePost"
+          FROM posts p
+          JOIN users u ON u.id = p.author_id
+          LEFT JOIN LATERAL (
+            SELECT url, thumbnail_url, type, width, height, duration, sort_order
+            FROM media_items
+            WHERE post_id = p.id
+            ORDER BY sort_order ASC
+            LIMIT 1
+          ) mi ON TRUE
+          WHERE p.deleted_at IS NULL
+            AND p.created_at >= '${windowStart}'
+            ${cursor ? `AND (p.created_at < '${cursor.timestamp}' OR (p.created_at = '${cursor.timestamp}' AND p.id < '${cursor.postId}'))` : ""}
+          ORDER BY p.created_at DESC, p.id DESC
+          LIMIT ${limit}
+        `;
+        const fallbackResult = await db.execute(sql.raw(fallbackQuery));
+        return fallbackResult.rows as unknown as FeedItem[];
+      }
+      throw err;
+    }
   }
 
   /**
