@@ -28,7 +28,7 @@ const PACT_BROKER_PASSWORD = process.env.PACT_BROKER_PASSWORD;
 const PROVIDER_BASE_URL = process.env.STAGING_API_URL || process.env.PRODUCTION_API_URL || "http://localhost:3000";
 const PROVIDER_VERSION = process.env.GITHUB_SHA || "local";
 const PROVIDER_BRANCH = process.env.GITHUB_REF_NAME || "local";
-const DATABASE_URL = process.env.DATABASE_URL || "postgresql://test:test@localhost:5432/instagram_test";
+const DATABASE_URL = process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED || "postgresql://test:test@localhost:5432/instagram_test";
 
 // Test constants
 const TEST_USER_EMAIL = "pact-test@example.com";
