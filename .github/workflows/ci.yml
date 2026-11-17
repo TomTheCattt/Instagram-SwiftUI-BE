@@ -226,7 +226,7 @@ jobs:
         run: npm run drizzle:generate
 
       - name: Debug - List generated migration files
-        run: ls -la drizzle/
+        run: ls -la drizzle/ && cat drizzle/*.sql | head -100
 
       - name: Wait for PostgreSQL to be fully ready
         run: |
@@ -247,6 +247,12 @@ jobs:
       - name: Debug - List database tables
         run: |
           PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "\dt"
+        env:
+          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
+
+      - name: Debug - Check users table columns
+        run: |
+          PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "\d users"
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
