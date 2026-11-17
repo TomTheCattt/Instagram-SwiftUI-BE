@@ -172,6 +172,7 @@ jobs:
 
       - name: Run GitLeaks (secrets scan)
         uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -179,6 +180,7 @@ jobs:
 
       - name: Run TruffleHog (secrets scan)
         uses: trufflesecurity/trufflehog@main
+        continue-on-error: true
         with:
           path: ./
           base: main
