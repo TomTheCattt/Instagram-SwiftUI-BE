@@ -110,26 +110,32 @@ async function cleanupDatabase() {
   // Clean up in reverse dependency order
   const userIds = [testUser?.id, otherUserId].filter(Boolean) as string[];
 
+  if (userIds.length === 0) {
+    // Still clean up test users by email
+    await db.delete(schema.users).where(eq(schema.users.email, TEST_USER_EMAIL));
+    await db.delete(schema.users).where(eq(schema.users.email, "other@example.com"));
+    console.log("✅ Database cleaned (no test users)");
+    return;
+  }
+
   // Delete message reactions for user's conversations
-  if (userIds.length > 0) {
-    const userConversations = await db
-      .select({ conversationId: schema.conversationMembers.conversationId })
-      .from(schema.conversationMembers)
-      .where(inArray(schema.conversationMembers.userId, userIds));
+  const userConversations = await db
+    .select({ conversationId: schema.conversationMembers.conversationId })
+    .from(schema.conversationMembers)
+    .where(inArray(schema.conversationMembers.userId, userIds));
 
-    const convIds = userConversations.map(c => c.conversationId);
+  const convIds = userConversations.map(c => c.conversationId);
 
-    if (convIds.length > 0) {
-      const userMessages = await db
-        .select({ id: schema.messages.id })
-        .from(schema.messages)
-        .where(inArray(schema.messages.conversationId, convIds));
+  if (convIds.length > 0) {
+    const userMessages = await db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(inArray(schema.messages.conversationId, convIds));
 
-      const msgIds = userMessages.map(m => m.id);
+    const msgIds = userMessages.map(m => m.id);
 
-      if (msgIds.length > 0) {
-        await db.delete(schema.messageReactions).where(inArray(schema.messageReactions.messageId, msgIds));
-      }
+    if (msgIds.length > 0) {
+      await db.delete(schema.messageReactions).where(inArray(schema.messageReactions.messageId, msgIds));
     }
   }
 
