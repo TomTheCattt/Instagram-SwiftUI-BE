@@ -376,7 +376,7 @@ export class AdminService {
 
     // Fetch moderation status for each user
     const userIds = usersList.map(u => u.id);
-    let moderationStatuses: Map<string, { isBanned: boolean; isShadowbanned: boolean; banReason?: string; banExpiresAt?: Date | null; featureRestrictions?: string[] }> = new Map();
+    const moderationStatuses: Map<string, { isBanned: boolean; isShadowbanned: boolean; banReason?: string; banExpiresAt?: Date | null; featureRestrictions?: string[] }> = new Map();
 
     if (userIds.length > 0) {
       const moderationActions = await db

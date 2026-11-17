@@ -115,7 +115,7 @@ class VoIPPushService {
   private async initAPNs(): Promise<void> {
     try {
       // Dynamic import to avoid bundling issues
-      // @ts-ignore - optional dependency
+      // @ts-expect-error - optional dependency
       const apn = await import("apn");
 
       this.apnsClient = new apn.Provider({
@@ -431,7 +431,7 @@ class VoIPPushService {
     }
 
     try {
-      // @ts-ignore - optional dependency
+      // @ts-expect-error - optional dependency
       const apn = await import("apn");
       const notification: any = new apn.Notification();
 

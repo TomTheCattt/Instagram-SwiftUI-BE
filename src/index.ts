@@ -6,7 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import { randomUUID } from "crypto";
 
 // Sentry for error tracking (optional - requires SENTRY_DSN)
-let sentryInit: (() => void) | null = null;
+let sentryInit: any = null;
 
 // Extend Hono's ContextVariableMap for custom context variables
 declare module "hono" {
@@ -96,7 +96,7 @@ const CORS_ORIGIN = env.CORS_ORIGIN.split(",").map((o) => o.trim());
 // Initialize Sentry if DSN is provided
 if (env.SENTRY_DSN) {
   try {
-    const Sentry = require("@sentry/node");
+    const { default: Sentry } = await import("@sentry/node");
     sentryInit = Sentry.init({
       dsn: env.SENTRY_DSN,
       environment: env.NODE_ENV || "development",
@@ -365,7 +365,7 @@ app.route("/v1/admin", adminRouter);
 // Sentry error handler (if configured)
 if (env.SENTRY_DSN) {
   try {
-    const Sentry = require("@sentry/node");
+    const { default: Sentry } = await import("@sentry/node");
     app.onError((err, c) => {
       const requestId = c.get("requestId");
       const error = err as Error;

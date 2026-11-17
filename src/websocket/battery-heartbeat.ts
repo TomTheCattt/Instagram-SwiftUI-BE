@@ -234,7 +234,7 @@ export class BatteryHeartbeatManager {
     }
 
     // Determine interval based on state
-    let interval = 0;
+    let interval: number;
 
     if (this.state.isBackground) {
       interval = this.config.background; // 0 = disabled

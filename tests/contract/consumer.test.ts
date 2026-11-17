@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { PactV3, MatchersV3 } from "@pact-foundation/pact";
-import { Matchers } from "@pact-foundation/pact";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const { like, eachLike, term, iso8601DateTime, uuid } = MatchersV3;
+const { like, eachLike, uuid, matcherValueOrString: term, datetime } = MatchersV3;
+
+// ISO 8601 datetime matcher with example
+const iso8601DateTime = () => datetime("yyyy-MM-dd'T'HH:mm:ssXXX", "2024-01-01T00:00:00Z");
 
 const PACT_DIR = path.resolve(__dirname, "../../pacts");
 const PROVIDER_BASE_URL = "http://localhost:3000";
@@ -22,7 +24,7 @@ describe("Instagram iOS App - Consumer Contract Tests", () => {
   });
 
   beforeAll(() => provider.setup());
-  afterAll(() => provider.finalize());
+  afterAll(() => provider.pact.writePactFile(PACT_DIR));
 
   describe("Health & Metrics", () => {
     it("GET /health", async () => {

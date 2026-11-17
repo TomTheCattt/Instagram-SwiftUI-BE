@@ -502,7 +502,7 @@ export function errorHandler() {
 
       // Send Sentry event if configured
       if (env.SENTRY_DSN) {
-        captureSentryError(error, context, problemDetails);
+        await captureSentryError(error, context, problemDetails);
       }
 
       // Return problem details response
@@ -627,9 +627,9 @@ function logError(error: unknown, context: ErrorContext, problemDetails: Problem
 /**
  * Capture error in Sentry.
  */
-function captureSentryError(error: unknown, context: ErrorContext, problemDetails: ProblemDetails): void {
+async function captureSentryError(error: unknown, context: ErrorContext, problemDetails: ProblemDetails): Promise<void> {
   try {
-    const Sentry = require("@sentry/node");
+    const { default: Sentry } = await import("@sentry/node");
     Sentry.withScope((scope: any) => {
       scope.setTag("requestId", context.requestId);
       scope.setTag("path", context.path);

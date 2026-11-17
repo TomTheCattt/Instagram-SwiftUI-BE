@@ -132,7 +132,7 @@ class PushNotificationService {
   private async initAPNs(): Promise<void> {
     try {
       // Dynamic import to avoid bundling issues
-      // @ts-ignore - optional dependency
+      // @ts-expect-error - optional dependency
       const apn = await import("apn");
 
       this.apnsClient = new apn.Provider({
@@ -161,9 +161,9 @@ class PushNotificationService {
    */
   private async initFCM(): Promise<void> {
     try {
-      // @ts-ignore - optional dependency
+      // @ts-expect-error - optional dependency
       const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-      // @ts-ignore - optional dependency
+      // @ts-expect-error - optional dependency
       const { getMessaging } = await import("firebase-admin/messaging");
 
       if (getApps().length === 0) {
@@ -389,7 +389,7 @@ class PushNotificationService {
       return { success: false, token, platform: "IOS", error: "APNs not initialized" };
     }
 
-    // @ts-ignore - optional dependency
+    // @ts-expect-error - optional dependency
     const apn = await import("apn");
     const notification: any = new apn.Notification();
 
@@ -461,7 +461,7 @@ class PushNotificationService {
       return { success: false, token, platform: "IOS", error: "APNs not initialized" };
     }
 
-    // @ts-ignore - optional dependency
+    // @ts-expect-error - optional dependency
     const apn = await import("apn");
     const notification: any = new apn.Notification();
 

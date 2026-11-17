@@ -537,40 +537,45 @@ adminRouter.post("/maintenance/cleanup", requireSuperAdmin, zValidator("json", z
   let deletedCount = 0;
 
   switch (type) {
-    case "expired_stories":
+    case "expired_stories": {
       const storiesResult = await db
         .delete(schema.stories)
         .where(and(lt(schema.stories.expiresAt, new Date()), isNull(schema.stories.deletedAt)));
       deletedCount = storiesResult.rowCount || 0;
       break;
+    }
 
-    case "expired_sessions":
+    case "expired_sessions": {
       const sessionsResult = await db
         .delete(schema.sessions)
         .where(lt(schema.sessions.expiresAt, new Date()));
       deletedCount = sessionsResult.rowCount || 0;
       break;
+    }
 
-    case "old_audit_logs":
+    case "old_audit_logs": {
       const auditResult = await db
         .delete(schema.auditLogs)
         .where(lt(schema.auditLogs.createdAt, cutoffDate));
       deletedCount = auditResult.rowCount || 0;
       break;
+    }
 
-    case "pending_uploads":
+    case "pending_uploads": {
       const uploadsResult = await db
         .delete(schema.pendingUploads)
         .where(and(eq(schema.pendingUploads.confirmed, false), lt(schema.pendingUploads.createdAt, cutoffDate)));
       deletedCount = uploadsResult.rowCount || 0;
       break;
+    }
 
-    case "device_tokens":
+    case "device_tokens": {
       const tokensResult = await db
         .delete(schema.deviceTokens)
         .where(and(lt(schema.deviceTokens.expiresAt, new Date()), eq(schema.deviceTokens.isActive, false)));
       deletedCount = tokensResult.rowCount || 0;
       break;
+    }
   }
 
   // Log audit

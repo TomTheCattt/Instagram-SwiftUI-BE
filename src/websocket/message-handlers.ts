@@ -70,7 +70,7 @@ export enum ServerMessageType {
 /**
  * Client message payloads
  */
-export interface PingPayload {}
+export type PingPayload = object;
 export interface SubscribePayload { channels: string[]; }
 export interface UnsubscribePayload { channels: string[]; }
 export interface MessageSendPayload { conversationId: string; content: string; contentType?: string; replyToId?: string; }
@@ -963,10 +963,12 @@ export async function routeMessage(
         await handleAcknowledgment(ws, message, manager);
         break;
 
-      default:
+      default: {
         // TypeScript exhaustiveness check
         const _exhaustive: never = messageType;
         sendError(ws, "UNKNOWN_TYPE", `Unknown message type: ${messageType}`);
+        break;
+      }
     }
   } catch (error) {
     console.error("[MessageHandlers] Route message error:", error);

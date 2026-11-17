@@ -805,8 +805,9 @@ export class FeedService {
     metadata?: any;
   }> {
     // This would be implemented with a LISTEN/NOTIFY listener
-    // For now, return empty - real implementation needs pg-listen or similar
-    return;
+    // For now, yield nothing - real implementation needs pg-listen or similar
+    // eslint-disable-next-line no-constant-condition
+    if (false) yield { userId: '', reason: '', metadata: undefined };
   }
 }
 

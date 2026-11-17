@@ -331,7 +331,7 @@ export class ReconnectManager {
     const delay = Math.floor(rawDelay / 2 + Math.random() * jitter);
 
     // Apply context-specific caps
-    let finalDelay = delay;
+    let finalDelay: number;
     if (context.hasActiveCall) {
       finalDelay = Math.min(delay, this.config.activeCallRetryCapMs);
       if (error.code === WSErrorCode.NETWORK_ERROR) {

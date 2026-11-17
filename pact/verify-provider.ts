@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Enhanced Pact Provider Verification Script
+ * Enhanced Pact Provider Verification Script (Drizzle ORM Version)
  *
  * This script verifies provider against consumer contracts from Pact Broker
  * with full database state management for each test state.
@@ -12,8 +12,11 @@
 import { Verifier, VerifierOptions } from "@pact-foundation/pact";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import * as schema from "../src/db/schema";
+import * as bcrypt from "bcrypt";
 import { SignJWT } from "jose";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,14 +34,12 @@ const DATABASE_URL = process.env.DATABASE_URL || "postgresql://test:test@localho
 const TEST_USER_EMAIL = "pact-test@example.com";
 const TEST_USER_PASSWORD = "TestPass123!";
 const TEST_USERNAME = "pacttestuser";
-const TEST_DISPLAY_NAME = "Pact Test User";
+const TEST_FULL_NAME = "Pact Test User";
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET || "test-secret-for-pact";
 
-// Prisma client for state setup
-const prisma = new PrismaClient({
-  datasources: { db: { url: DATABASE_URL } },
-  log: process.env.DEBUG ? ["query", "error", "warn"] : ["error"],
-});
+// Create Drizzle client for state setup
+const pool = new Pool({ connectionString: DATABASE_URL, max: 5 });
+const db = drizzle(pool, { schema });
 
 interface TestUser {
   id: string;
@@ -105,23 +106,82 @@ async function generateTokens(userId: string): Promise<{ accessToken: string; re
 
 async function cleanupDatabase() {
   console.log("🧹 Cleaning up test database...");
+
   // Clean up in reverse dependency order
-  await prisma.messageReaction.deleteMany({ where: { message: { conversation: { participants: { some: { user: { email: TEST_USER_EMAIL } } } } } } });
-  await prisma.message.deleteMany({ where: { conversation: { participants: { some: { user: { email: TEST_USER_EMAIL } } } } } });
-  await prisma.conversationParticipant.deleteMany({ where: { user: { email: TEST_USER_EMAIL } } });
-  await prisma.conversation.deleteMany({ where: { participants: { some: { user: { email: TEST_USER_EMAIL } } } } });
-  await prisma.notification.deleteMany({ where: { recipientId: { in: [testUser?.id, otherUserId].filter(Boolean) as string[] } } });
-  await prisma.storyItem.deleteMany({ where: { story: { userId: testUser?.id } } });
-  await prisma.story.deleteMany({ where: { userId: testUser?.id } });
-  await prisma.reel.deleteMany({ where: { userId: testUser?.id } });
-  await prisma.postMedia.deleteMany({ where: { post: { userId: testUser?.id } } });
-  await prisma.post.deleteMany({ where: { userId: testUser?.id } });
-  await prisma.media.deleteMany({ where: { userId: testUser?.id } });
-  await prisma.follow.deleteMany({ where: { OR: [{ followerId: testUser?.id }, { followingId: testUser?.id }] } });
-  await prisma.session.deleteMany({ where: { userId: testUser?.id } });
-  await prisma.account.deleteMany({ where: { userId: testUser?.id } });
-  await prisma.user.deleteMany({ where: { email: TEST_USER_EMAIL } });
-  await prisma.user.deleteMany({ where: { email: "other@example.com" } });
+  const userIds = [testUser?.id, otherUserId].filter(Boolean) as string[];
+
+  // Delete message reactions for user's conversations
+  if (userIds.length > 0) {
+    const userConversations = await db
+      .select({ conversationId: schema.conversationMembers.conversationId })
+      .from(schema.conversationMembers)
+      .where(inArray(schema.conversationMembers.userId, userIds));
+
+    const convIds = userConversations.map(c => c.conversationId);
+
+    if (convIds.length > 0) {
+      const userMessages = await db
+        .select({ id: schema.messages.id })
+        .from(schema.messages)
+        .where(inArray(schema.messages.conversationId, convIds));
+
+      const msgIds = userMessages.map(m => m.id);
+
+      if (msgIds.length > 0) {
+        await db.delete(schema.messageReactions).where(inArray(schema.messageReactions.messageId, msgIds));
+      }
+    }
+  }
+
+  await db.delete(schema.messages).where(
+    inArray(schema.messages.conversationId,
+      db.select({ conversationId: schema.conversationMembers.conversationId })
+        .from(schema.conversationMembers)
+        .where(inArray(schema.conversationMembers.userId, userIds))
+    )
+  );
+
+  await db.delete(schema.conversationMembers).where(inArray(schema.conversationMembers.userId, userIds));
+
+  await db.delete(schema.conversations).where(
+    inArray(schema.conversations.id,
+      db.select({ conversationId: schema.conversationMembers.conversationId })
+        .from(schema.conversationMembers)
+        .where(inArray(schema.conversationMembers.userId, userIds))
+    )
+  );
+
+  await db.delete(schema.notifications).where(inArray(schema.notifications.recipientId, userIds));
+
+  await db.delete(schema.storyItems).where(
+    inArray(schema.storyItems.storyId,
+      db.select({ id: schema.stories.id }).from(schema.stories).where(inArray(schema.stories.authorId, userIds))
+    )
+  );
+
+  await db.delete(schema.stories).where(inArray(schema.stories.authorId, userIds));
+
+  await db.delete(schema.reels).where(inArray(schema.reels.authorId, userIds));
+
+  // Delete post media for user's posts
+  await db.delete(schema.mediaItems).where(
+    inArray(schema.mediaItems.postId,
+      db.select({ id: schema.posts.id }).from(schema.posts).where(inArray(schema.posts.authorId, userIds))
+    )
+  );
+
+  await db.delete(schema.posts).where(inArray(schema.posts.authorId, userIds));
+
+  await db.delete(schema.mediaItems).where(inArray(schema.mediaItems.mediaableId, userIds));
+
+  await db.delete(schema.follows).where(
+    sql`${schema.follows.followerId} IN (${sql.join(userIds.map(() => sql.placeholder()), sql`, `)}) OR ${schema.follows.followingId} IN (${sql.join(userIds.map(() => sql.placeholder()), sql`, `)})`,
+    [...userIds, ...userIds]
+  );
+
+  await db.delete(schema.users).where(eq(schema.users.email, TEST_USER_EMAIL));
+  await db.delete(schema.users).where(eq(schema.users.email, "other@example.com"));
+
   console.log("✅ Database cleaned");
 }
 
@@ -129,55 +189,40 @@ async function setupTestUser(): Promise<TestUser> {
   console.log("👤 Setting up test user...");
 
   // Create other user for interactions
-  const otherUser = await prisma.user.create({
-    data: {
-      email: "other@example.com",
-      username: "otheruser",
-      displayName: "Other User",
-      passwordHash: await bcrypt.hash("OtherPass123!", 12),
-      isVerified: true,
-      isPrivate: false,
-    },
-  });
-  otherUserId = otherUser.id;
+  const otherUser = await db.insert(schema.users).values({
+    email: "other@example.com",
+    username: "otheruser",
+    fullName: "Other User",
+    passwordHash: await bcrypt.hash("OtherPass123!", 12),
+    isVerified: true,
+    isPrivate: false,
+  }).returning({ id: schema.users.id });
+
+  otherUserId = otherUser[0].id;
 
   // Create main test user
-  const user = await prisma.user.create({
-    data: {
-      email: TEST_USER_EMAIL,
-      username: TEST_USERNAME,
-      displayName: TEST_DISPLAY_NAME,
-      passwordHash: await bcrypt.hash(TEST_USER_PASSWORD, 12),
-      isVerified: true,
-      isPrivate: false,
-      bio: "Test bio",
-      website: "https://example.com",
-    },
-  });
+  const user = await db.insert(schema.users).values({
+    email: TEST_USER_EMAIL,
+    username: TEST_USERNAME,
+    fullName: TEST_FULL_NAME,
+    passwordHash: await bcrypt.hash(TEST_USER_PASSWORD, 12),
+    isVerified: true,
+    isPrivate: false,
+    bio: "Test bio",
+    website: "https://example.com",
+  }).returning({ id: schema.users.id });
 
-  const tokens = await generateTokens(user.id);
-
-  // Create session
-  await prisma.session.create({
-    data: {
-      userId: user.id,
-      token: tokens.accessToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-      deviceId: "pact-test-device",
-      ipAddress: "127.0.0.1",
-      userAgent: "Pact Test Agent",
-    },
-  });
+  const tokens = await generateTokens(user[0].id);
 
   testUser = {
-    id: user.id,
-    email: user.email,
-    username: user.username,
+    id: user[0].id,
+    email: TEST_USER_EMAIL,
+    username: TEST_USERNAME,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
   };
 
-  console.log(`✅ Test user created: ${user.id}`);
+  console.log(`✅ Test user created: ${user[0].id}`);
   return testUser;
 }
 
@@ -186,30 +231,26 @@ async function setupTestMedia(): Promise<TestMedia> {
 
   console.log("📸 Setting up test media...");
 
-  const media = await prisma.media.create({
-    data: {
-      userId: testUser.id,
-      type: "image",
-      url: "https://storage.example.com/media/test-image.jpg",
-      thumbnailUrl: "https://storage.example.com/media/thumb_test-image.jpg",
-      width: 1080,
-      height: 1080,
-      duration: null,
-      mimeType: "image/jpeg",
-      fileSize: 102400,
-      status: "ready",
-      processingStatus: "completed",
-    },
-  });
+  const media = await db.insert(schema.mediaItems).values({
+    type: "IMAGE",
+    url: "https://storage.example.com/media/test-image.jpg",
+    thumbnailUrl: "https://storage.example.com/media/thumb_test-image.jpg",
+    width: 1080,
+    height: 1080,
+    duration: null,
+    processingStatus: "completed",
+    mediaableType: "post",
+    mediaableId: testUser.id, // Temporary, will be updated when post is created
+  }).returning({ id: schema.mediaItems.id, url: schema.mediaItems.url, type: schema.mediaItems.type });
 
   testMedia = {
-    id: media.id,
-    userId: media.userId,
-    url: media.url,
-    type: media.type,
+    id: media[0].id,
+    userId: testUser.id,
+    url: media[0].url,
+    type: media[0].type,
   };
 
-  console.log(`✅ Test media created: ${media.id}`);
+  console.log(`✅ Test media created: ${media[0].id}`);
   return testMedia;
 }
 
@@ -218,36 +259,24 @@ async function setupTestPost(): Promise<TestPost> {
 
   console.log("📝 Setting up test post...");
 
-  const post = await prisma.post.create({
-    data: {
-      userId: testUser.id,
-      caption: "Test post caption #hashtag",
-      audience: "followers",
-      allowComments: true,
-      allowLikes: true,
-      media: {
-        create: {
-          mediaId: testMedia.id,
-          order: 0,
-        },
-      },
-      location: {
-        create: {
-          name: "San Francisco, CA",
-          latitude: 37.7749,
-          longitude: -122.4194,
-        },
-      },
-    },
-  });
+  const post = await db.insert(schema.posts).values({
+    authorId: testUser.id,
+    caption: "Test post caption #hashtag",
+    audience: "FOLLOWERS",
+  }).returning({ id: schema.posts.id, authorId: schema.posts.authorId, caption: schema.posts.caption });
+
+  // Update media item to reference this post
+  await db.update(schema.mediaItems)
+    .set({ mediaableId: post[0].id, mediaableType: "post" })
+    .where(eq(schema.mediaItems.id, testMedia.id));
 
   testPost = {
-    id: post.id,
-    userId: post.userId,
-    caption: post.caption,
+    id: post[0].id,
+    userId: post[0].authorId,
+    caption: post[0].caption,
   };
 
-  console.log(`✅ Test post created: ${post.id}`);
+  console.log(`✅ Test post created: ${post[0].id}`);
   return testPost;
 }
 
@@ -256,31 +285,30 @@ async function setupTestConversation(): Promise<TestConversation> {
 
   console.log("💬 Setting up test conversation...");
 
-  const conversation = await prisma.conversation.create({
-    data: {
-      type: "direct",
-      participants: {
-        create: [
-          { userId: testUser.id },
-          { userId: otherUserId },
-        ],
-      },
-      messages: {
-        create: {
-          senderId: otherUserId,
-          type: "text",
-          content: "Hey! How are you?",
-        },
-      },
-    },
+  const conversation = await db.insert(schema.conversations).values({
+    isGroup: false,
+  }).returning({ id: schema.conversations.id });
+
+  // Add participants
+  await db.insert(schema.conversationMembers).values([
+    { conversationId: conversation[0].id, userId: testUser.id },
+    { conversationId: conversation[0].id, userId: otherUserId },
+  ]);
+
+  // Add a message
+  await db.insert(schema.messages).values({
+    conversationId: conversation[0].id,
+    senderId: otherUserId,
+    contentType: "TEXT",
+    textContent: "Hey! How are you?",
   });
 
   testConversation = {
-    id: conversation.id,
+    id: conversation[0].id,
     participants: [testUser.id, otherUserId],
   };
 
-  console.log(`✅ Test conversation created: ${conversation.id}`);
+  console.log(`✅ Test conversation created: ${conversation[0].id}`);
   return testConversation;
 }
 
@@ -289,16 +317,15 @@ async function setupTestReel() {
 
   console.log("🎬 Setting up test reel...");
 
-  await prisma.reel.create({
-    data: {
-      userId: testUser.id,
-      caption: "Amazing reel! 🎬",
-      audience: "public",
-      allowComments: true,
-      allowRemix: true,
-      videoId: testMedia.id,
-      coverTimestamp: 5.0,
-    },
+  await db.insert(schema.reels).values({
+    authorId: testUser.id,
+    videoUrl: testMedia.url,
+    thumbnailUrl: testMedia.url,
+    caption: "Amazing reel! 🎬",
+    audience: "public",
+    allowRemix: true,
+    allowDownload: false,
+    duration: "10.0",
   });
   console.log("✅ Test reel created");
 }
@@ -308,18 +335,18 @@ async function setupTestStory() {
 
   console.log("📖 Setting up test story...");
 
-  await prisma.story.create({
-    data: {
-      userId: testUser.id,
-      audience: "followers",
-      items: {
-        create: {
-          mediaId: testMedia.id,
-          type: "image",
-          duration: 5,
-        },
-      },
-    },
+  await db.insert(schema.stories).values({
+    authorId: testUser.id,
+    audience: "followers",
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  }).returning({ id: schema.stories.id }).then(async (story) => {
+    await db.insert(schema.storyItems).values({
+      storyId: story[0].id,
+      mediaUrl: testMedia!.url,
+      thumbnailUrl: testMedia!.url,
+      type: "IMAGE",
+      duration: "5",
+    });
   });
   console.log("✅ Test story created");
 }
@@ -329,18 +356,16 @@ async function setupTestNotification() {
 
   console.log("🔔 Setting up test notification...");
 
-  await prisma.notification.create({
-    data: {
-      recipientId: testUser.id,
-      actorId: otherUserId,
-      type: "like",
-      groupKey: `like:post:${testPost.id}`,
-      groupCount: 5,
-      targetType: "post",
-      targetId: testPost.id,
-      targetPreview: "Test post caption...",
-      isRead: false,
-    },
+  await db.insert(schema.notifications).values({
+    recipientId: testUser.id,
+    actorId: otherUserId,
+    type: "LIKE",
+    groupKey: `like:post:${testPost.id}`,
+    groupCount: 5,
+    referenceType: "post",
+    referenceId: testPost.id,
+    previewText: "Test post caption...",
+    isRead: false,
   });
   console.log("✅ Test notification created");
 }
@@ -350,12 +375,10 @@ async function setupFollowRelationship() {
 
   console.log("👥 Setting up follow relationship...");
 
-  await prisma.follow.create({
-    data: {
-      followerId: testUser.id,
-      followingId: otherUserId,
-      status: "accepted",
-    },
+  await db.insert(schema.follows).values({
+    followerId: testUser.id,
+    followingId: otherUserId,
+    status: "ACCEPTED",
   });
   console.log("✅ Follow relationship created");
 }
@@ -407,7 +430,7 @@ async function verifyProvider() {
     "a valid registration request": async () => {
       // No setup needed - request is valid
       // Ensure user doesn't exist
-      await prisma.user.deleteMany({ where: { email: "newuser@example.com" } });
+      await db.delete(schema.users).where(eq(schema.users.email, "newuser@example.com"));
     },
     "a valid refresh token exists": async () => {
       if (!testUser) await initializeTestData();
@@ -439,11 +462,12 @@ async function verifyProvider() {
     },
     "a liked post exists": async () => {
       if (!testPost || !testUser) await initializeTestData();
-      await prisma.postLike.upsert({
-        where: { postId_userId: { postId: testPost.id, userId: testUser.id } },
-        create: { postId: testPost.id, userId: testUser.id },
-        update: {},
-      });
+      await db.insert(schema.likes).values({
+        userId: testUser.id,
+        likeableType: "POST",
+        likeableId: testPost.id,
+        postId: testPost.id,
+      }).onConflictDoNothing({ target: [schema.likes.userId, schema.likes.likeableType, schema.likes.likeableId] });
     },
     "reels exist for feed": async () => {
       if (!testUser) await initializeTestData();
@@ -496,7 +520,7 @@ async function verifyProvider() {
     pactBrokerUrl: PACT_BROKER_URL,
     pactBrokerUsername: PACT_BROKER_USERNAME,
     pactBrokerPassword: PACT_BROKER_PASSWORD,
-    publishVerificationResults: true,
+    publishVerificationResult: true,
     providerVersion: PROVIDER_VERSION,
     providerVersionTags: [PROVIDER_BRANCH, "latest"],
     enablePending: true,
@@ -515,11 +539,11 @@ async function verifyProvider() {
     const result = await verifier.verifyProvider();
     console.log("\n✅ Provider verification passed!");
     console.log(result);
-    await prisma.$disconnect();
+    await pool.end();
     process.exit(0);
   } catch (error) {
     console.error("\n❌ Provider verification failed:", error);
-    await prisma.$disconnect();
+    await pool.end();
     process.exit(1);
   }
 }
@@ -527,13 +551,13 @@ async function verifyProvider() {
 // Handle graceful shutdown
 process.on("SIGINT", async () => {
   console.log("\n🛑 Received SIGINT, cleaning up...");
-  await prisma.$disconnect();
+  await pool.end();
   process.exit(1);
 });
 
 process.on("SIGTERM", async () => {
   console.log("\n🛑 Received SIGTERM, cleaning up...");
-  await prisma.$disconnect();
+  await pool.end();
   process.exit(1);
 });
 

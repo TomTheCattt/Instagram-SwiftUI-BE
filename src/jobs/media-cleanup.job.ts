@@ -361,8 +361,6 @@ export async function triggerMediaCleanup(): Promise<{
   freedBytes: number;
 }> {
   const startTime = Date.now();
-  let totalDeleted = 0;
-  let totalFreed = 0;
 
   try {
     const [pendingResult, orphanedResult, failedResult, storyResult] = await Promise.all([
@@ -372,9 +370,9 @@ export async function triggerMediaCleanup(): Promise<{
       cleanupExpiredStoryMedia(),
     ]);
 
-    totalDeleted = pendingResult.deletedCount + orphanedResult.deletedCount +
+    const totalDeleted = pendingResult.deletedCount + orphanedResult.deletedCount +
                    failedResult.deletedCount + storyResult.deletedCount;
-    totalFreed = pendingResult.freedBytes + orphanedResult.freedBytes;
+    const totalFreed = pendingResult.freedBytes + orphanedResult.freedBytes;
 
     return {
       success: true,

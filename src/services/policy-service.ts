@@ -1151,8 +1151,8 @@ export class PolicyService {
   ): boolean {
     if (!resourceData) return false;
 
-    const ownerField = condition.via || "authorId" || "userId" || "ownerId";
-    const ownerId = resourceData[ownerField] || resourceData.authorId || resourceData.userId || resourceData.ownerId;
+    const ownerField = condition.via ?? "authorId";
+    const ownerId = resourceData[ownerField] ?? resourceData.authorId ?? resourceData.userId ?? resourceData.ownerId;
 
     return ownerId === user.id;
   }

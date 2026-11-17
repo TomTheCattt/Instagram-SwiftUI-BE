@@ -52,9 +52,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
       - name: Generate Drizzle schema
         run: npm run drizzle:generate
 
@@ -92,14 +89,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
       - name: Generate Drizzle schema
         run: npm run drizzle:generate
 
       - name: Run database migrations
-        run: npx prisma migrate deploy
+        run: npm run drizzle:push
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
 
@@ -210,14 +204,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
       - name: Generate Drizzle schema
         run: npm run drizzle:generate
 
       - name: Run database migrations
-        run: npx prisma migrate deploy
+        run: npm run drizzle:push
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/instagram_test
 
@@ -300,9 +291,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Generate Prisma Client
-        run: npx prisma generate
 
       - name: Generate Drizzle schema
         run: npm run drizzle:generate

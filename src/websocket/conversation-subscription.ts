@@ -59,7 +59,7 @@ export async function autoSubscribeConversations(
 
   try {
     // Build query to get user's conversations
-    let query = db
+    const query = db
       .select({
         conversationId: schema.conversationMembers.conversationId,
         isMuted: schema.conversationMembers.isMuted,

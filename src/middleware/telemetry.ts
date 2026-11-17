@@ -271,7 +271,7 @@ function initializeOtelMetrics(): void {
 /**
  * Initialize built-in Prometheus-compatible metrics (fallback when OTel not available)
  */
-let builtInMetrics: {
+const builtInMetrics: {
   httpRequestsTotal: Map<string, number>;
   httpRequestDurations: number[];
   httpRequestsActive: number;
@@ -324,7 +324,7 @@ export const tracingMiddleware = createMiddleware(async (c, next) => {
   let traceId = "";
   let spanId = "";
   let sampled = false;
-  let parentSpanId: string | undefined;
+  const parentSpanId: string | undefined = undefined;
 
   if (otelModules?.propagation) {
     const carrier: Record<string, string> = {};
@@ -438,7 +438,6 @@ export const tracingMiddleware = createMiddleware(async (c, next) => {
       }
 
       span.end();
-      spanEnded = true;
     }
 
     // Record metrics
@@ -752,7 +751,7 @@ export const telemetry = createMiddleware(async (c, next) => {
   let traceId = "";
   let spanId = "";
   let sampled = false;
-  let parentSpanId: string | undefined;
+  const parentSpanId: string | undefined = undefined;
 
   if (otelModules?.propagation) {
     const carrier: Record<string, string> = {};
@@ -862,7 +861,6 @@ export const telemetry = createMiddleware(async (c, next) => {
       }
 
       span.end();
-      spanEnded = true;
     }
 
     // Record metrics
