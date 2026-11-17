@@ -241,6 +241,12 @@ jobs:
         env:
           DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
 
+      - name: Debug - List database tables
+        run: |
+          PGPASSWORD=test psql -h localhost -U test -d instagram_test -c "\dt"
+        env:
+          DATABASE_URL_UNPOOLED: postgresql://test:test@localhost:5432/instagram_test
+
       - name: Install Pact CLI
         run: npm install -g @pact-foundation/pact-cli
 
