@@ -1,10 +1,10 @@
-import { Hono } from "hono";
+import { Context, Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { authMiddleware, getCurrentUser } from "../middleware/auth";
 import { db } from "../db/client";
 import * as schema from "../db/schema";
-import { eq, and, or, desc, asc, count, sql, inArray, lt, isNull, not } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { conversationService } from "../services/conversation-service";
 import { messageService } from "../services/message-service";
@@ -69,14 +69,14 @@ const reportSchema = z.object({
   description: z.string().max(1000).optional(),
 });
 
-function getPagination(c: any) {
+function getPagination(c: Context) {
   const page = Number(c.req.query("page")) || 1;
   const perPage = Math.min(Number(c.req.query("perPage")) || 20, 50);
   return { page, perPage, offset: (page - 1) * perPage };
 }
 
 // Cursor-based pagination helper
-function getCursorPagination(c: any) {
+function getCursorPagination(c: Context) {
   const cursor = c.req.query("cursor");
   const perPage = Math.min(Number(c.req.query("perPage")) || 20, 50);
   return { cursor, perPage };
@@ -94,25 +94,33 @@ conversationRouter.get("/", async (c) => {
   const user = getCurrentUser(c);
   const { page, perPage } = getPagination(c);
 
-  let result: any = { items: [] };
+  let result: { items?: unknown[] };
   try {
     result = await conversationService.getConversations({
       userId: user.id,
       page,
       perPage,
     });
-  } catch {}
+  } catch {
+    result = { items: [] };
+  }
 
-  const mappedConversations = (result.items || []).map((conv: any) => {
-    const convId = conv.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : conv.id;
-    const participants = (conv.members || []).map((m: any) => ({
-      id: m.user?.id || m.userId || "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-      username: m.user?.username || "friend",
-      displayName: m.user?.fullName || m.user?.username || "Friend Name",
-      avatarUrl: m.user?.avatarUrl || "https://storage.example.com/avatars/friend.jpg",
-      isVerified: m.user?.isVerified ?? false,
-    }));
+  const rawItems = (result.items || []) as Record<string, unknown>[];
+  const mappedConversations = rawItems.map((conv) => {
+    const convId = (conv.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : conv.id) as string;
+    const members = (conv.members || []) as Record<string, unknown>[];
+    const participants = members.map((m) => {
+      const u = m.user as Record<string, unknown> | undefined;
+      return {
+        id: (u?.id || m.userId || "e2490de5-5bd3-43d5-b7c4-526e33f71304") as string,
+        username: (u?.username || "friend") as string,
+        displayName: (u?.fullName || u?.username || "Friend Name") as string,
+        avatarUrl: (u?.avatarUrl || "https://storage.example.com/avatars/friend.jpg") as string,
+        isVerified: (u?.isVerified ?? false) as boolean,
+      };
+    });
 
+    const lastMsg = conv.lastMessage as Record<string, unknown> | undefined;
     return {
       ...conv,
       id: convId,
@@ -126,12 +134,12 @@ conversationRouter.get("/", async (c) => {
           isVerified: false,
         }
       ],
-      lastMessage: conv.lastMessage ? {
-        id: conv.lastMessage.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : conv.lastMessage.id,
-        type: (conv.lastMessage.contentType || "text").toLowerCase(),
-        content: conv.lastMessage.textContent || "Hey! How are you?",
-        senderId: conv.lastMessage.senderId || "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-        createdAt: conv.lastMessage.createdAt || new Date().toISOString(),
+      lastMessage: lastMsg ? {
+        id: (lastMsg.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : lastMsg.id) as string,
+        type: ((lastMsg.contentType || "text") as string).toLowerCase(),
+        content: (lastMsg.textContent || "Hey! How are you?") as string,
+        senderId: (lastMsg.senderId || "e2490de5-5bd3-43d5-b7c4-526e33f71304") as string,
+        createdAt: (lastMsg.createdAt || new Date().toISOString()) as string,
       } : {
         id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
         type: "text",
@@ -139,9 +147,9 @@ conversationRouter.get("/", async (c) => {
         senderId: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
         createdAt: new Date().toISOString(),
       },
-      unreadCount: conv.unreadCount ?? 2,
-      isMuted: conv.isMuted ?? false,
-      updatedAt: conv.updatedAt || new Date().toISOString(),
+      unreadCount: (conv.unreadCount ?? 2) as number,
+      isMuted: (conv.isMuted ?? false) as boolean,
+      updatedAt: (conv.updatedAt || new Date().toISOString()) as string,
     };
   });
 
@@ -192,14 +200,18 @@ conversationRouter.post("/", zValidator("json", createConversationSchema), async
     creatorId: user.id,
   });
 
-  const conv: any = result.conversation;
-  const mappedParticipants = (conv?.members || []).map((m: any) => ({
-    id: m.user?.id || m.userId,
-    username: m.user?.username || "friend",
-    displayName: m.user?.fullName || m.user?.username || "Friend Name",
-    avatarUrl: m.user?.avatarUrl || "https://storage.example.com/avatars/friend.jpg",
-    isVerified: m.user?.isVerified ?? false,
-  }));
+  const conv = result.conversation as Record<string, unknown> | null;
+  const members = (conv?.members || []) as Record<string, unknown>[];
+  const mappedParticipants = members.map((m) => {
+    const u = m.user as Record<string, unknown> | undefined;
+    return {
+      id: (u?.id || m.userId) as string,
+      username: (u?.username || "friend") as string,
+      displayName: (u?.fullName || u?.username || "Friend Name") as string,
+      avatarUrl: (u?.avatarUrl || "https://storage.example.com/avatars/friend.jpg") as string,
+      isVerified: (u?.isVerified ?? false) as boolean,
+    };
+  });
 
   const mappedConversation = {
     ...conv,
@@ -300,7 +312,7 @@ conversationRouter.put("/:id", zValidator("json", updateGroupSchema), async (c) 
     throw new HTTPException(403, { message: "Not authorized to update this conversation" });
   }
 
-  const updateData: any = { updatedAt: new Date() };
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (groupName !== undefined) updateData.groupName = groupName;
   if (groupAvatar !== undefined) updateData.groupAvatarUrl = groupAvatar;
 
@@ -412,19 +424,23 @@ conversationRouter.get("/:id/messages", async (c) => {
   const conversationId = c.req.param("id");
   const { cursor, perPage } = getCursorPagination(c);
 
-  let result: any = { items: [] };
+  let result: { items?: unknown[] };
   try {
     result = await messageService.getMessages(conversationId, user.id, cursor, perPage);
-  } catch {}
+  } catch {
+    result = { items: [] };
+  }
 
-  const mappedMessages = (result.items || []).map((m: any) => {
-    const msgId = m.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : m.id;
-    const convId = m.conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : m.conversationId;
-    const reactionsGrouped = (m.reactions && m.reactions.length > 0)
-      ? m.reactions.map((r: any) => ({
-          emoji: r.emoji || "👍",
+  const rawItems = (result.items || []) as Record<string, unknown>[];
+  const mappedMessages = rawItems.map((m) => {
+    const msgId = (m.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : m.id) as string;
+    const convId = (m.conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : m.conversationId) as string;
+    const reactions = (m.reactions || []) as Record<string, unknown>[];
+    const reactionsGrouped = reactions.length > 0
+      ? reactions.map((r) => ({
+          emoji: (r.emoji || "👍") as string,
           count: 1,
-          userIds: [r.userId || "e2490de5-5bd3-43d5-b7c4-526e33f71304"],
+          userIds: [(r.userId || "e2490de5-5bd3-43d5-b7c4-526e33f71304") as string],
         }))
       : [
           {
@@ -438,15 +454,15 @@ conversationRouter.get("/:id/messages", async (c) => {
       ...m,
       id: msgId,
       conversationId: convId,
-      type: (m.contentType || "text").toLowerCase(),
-      content: m.textContent || "Hello!",
-      senderId: m.senderId || user.id,
-      replyToId: m.replyToId || null,
-      isEdited: m.isEdited ?? false,
+      type: (((m.contentType as string) || "text")).toLowerCase(),
+      content: (m.textContent || "Hello!") as string,
+      senderId: (m.senderId || user.id) as string,
+      replyToId: (m.replyToId || null) as string | null,
+      isEdited: (m.isEdited ?? false) as boolean,
       isDeleted: m.deletedAt ? true : false,
       reactions: reactionsGrouped,
-      createdAt: m.createdAt || new Date().toISOString(),
-      updatedAt: m.updatedAt || new Date().toISOString(),
+      createdAt: (m.createdAt || new Date().toISOString()) as string,
+      updatedAt: (m.updatedAt || new Date().toISOString()) as string,
     };
   });
 
@@ -486,15 +502,18 @@ conversationRouter.post("/:id/messages", zValidator("json", sendMessageSchema), 
   const user = getCurrentUser(c);
   const conversationId = c.req.param("id");
   const rawBody = c.req.valid("json");
-  const effectiveContentType = (rawBody.contentType || rawBody.type || "TEXT").toUpperCase() as any;
+  const contentTypeInput = (rawBody.contentType || rawBody.type || "TEXT").toUpperCase() as
+    | "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE"
+    | "POST_SHARE" | "REEL_SHARE" | "STORY_SHARE" | "PROFILE_SHARE"
+    | "LOCATION" | "CONTACT" | "VOICE" | "REPLY" | "SYSTEM";
   const effectiveContent = rawBody.textContent || rawBody.content || "Hello there!";
 
-  let message: any = null;
+  let message: Record<string, unknown>;
   try {
-    message = await messageService.sendMessage({
+    message = (await messageService.sendMessage({
       conversationId,
       senderId: user.id,
-      contentType: effectiveContentType,
+      contentType: contentTypeInput,
       textContent: effectiveContent,
       mediaUrl: rawBody.mediaUrl || undefined,
       mediaThumbnail: rawBody.mediaThumbnail || undefined,
@@ -503,32 +522,37 @@ conversationRouter.post("/:id/messages", zValidator("json", sendMessageSchema), 
       replyToId: rawBody.replyToId || undefined,
       isEphemeral: rawBody.isEphemeral,
       expiresAt: rawBody.expiresAt ? new Date(rawBody.expiresAt) : undefined,
-    });
-  } catch (err) {
+    })) as unknown as Record<string, unknown>;
+  } catch {
     message = {
       id: crypto.randomUUID(),
       conversationId: conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : conversationId,
       senderId: user.id,
-      contentType: effectiveContentType,
+      contentType: contentTypeInput,
       textContent: effectiveContent,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
   }
 
+  const rawMessageId = (message.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (message.id || crypto.randomUUID())) as string;
+  const rawConvId = (message.conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (message.conversationId || conversationId)) as string;
+  const rawContentType = (message.contentType || rawBody.type || "text") as string;
+  const reactionsList = (message.reactions || []) as Record<string, unknown>[];
+
   const mappedMessage = {
     ...message,
-    id: message.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (message.id || crypto.randomUUID()),
-    type: (message.contentType || rawBody.type || "text").toLowerCase(),
-    content: message.textContent || rawBody.content || effectiveContent,
-    senderId: message.senderId || user.id,
-    conversationId: message.conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (message.conversationId || conversationId),
-    replyToId: message.replyToId || null,
-    isEdited: message.isEdited ?? false,
-    isDeleted: message.isDeleted ?? false,
-    reactions: (message as any).reactions || [],
-    createdAt: message.createdAt || new Date().toISOString(),
-    updatedAt: message.updatedAt || new Date().toISOString(),
+    id: rawMessageId,
+    type: rawContentType.toLowerCase(),
+    content: (message.textContent || rawBody.content || effectiveContent) as string,
+    senderId: (message.senderId || user.id) as string,
+    conversationId: rawConvId,
+    replyToId: (message.replyToId || null) as string | null,
+    isEdited: (message.isEdited ?? false) as boolean,
+    isDeleted: (message.isDeleted ?? false) as boolean,
+    reactions: reactionsList,
+    createdAt: (message.createdAt || new Date().toISOString()) as string,
+    updatedAt: (message.updatedAt || new Date().toISOString()) as string,
   };
 
   return c.json(

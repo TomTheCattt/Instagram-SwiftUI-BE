@@ -15,7 +15,7 @@ import * as fs from "fs";
 import { fileURLToPath } from "url";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, and, or, inArray, sql } from "drizzle-orm";
+import { eq, and, or, inArray } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import * as bcrypt from "bcrypt";
 import { SignJWT } from "jose";
@@ -702,7 +702,9 @@ async function verifyProvider() {
       if (modified) {
         fs.writeFileSync(localPactFile, JSON.stringify(pact, null, 2) + "\n");
       }
-    } catch {}
+    } catch (err) {
+      console.warn("Could not normalize local pact file:", err);
+    }
   }
 
   const verifierOptions: VerifierOptions = {

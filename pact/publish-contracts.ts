@@ -97,7 +97,9 @@ async function publishContracts() {
                 },
               };
               modified = true;
-            } catch {}
+            } catch {
+              continue;
+            }
           }
         }
       }

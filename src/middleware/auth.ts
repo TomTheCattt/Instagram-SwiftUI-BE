@@ -39,7 +39,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     });
 
     let user: any = null;
-    let sessionId: string = sessionRecord?.id || "fallback-session-id";
+    const sessionId = sessionRecord?.id || "fallback-session-id";
 
     if (sessionRecord) {
       user = await db.query.users.findFirst({
@@ -57,7 +57,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
             where: eq(schema.users.id, payload.sub as string),
           });
         }
-      } catch {}
+      } catch {
+        // Token is not a valid JWT, proceed to static fallback
+        user = null;
+      }
     }
 
     // 3. Fallback for contract test static token
