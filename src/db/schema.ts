@@ -1246,11 +1246,11 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   restrictedBy: many(restrictions, { relationName: "restricted" }),
   closeFriends: many(closeFriends, { relationName: "user" }),
   closeFriendOf: many(closeFriends, { relationName: "friend" }),
-  posts: many(posts),
+  posts: many(posts, { relationName: "author" }),
   sponsoredPosts: many(posts, { relationName: "SponsoredPosts" }),
   reels: many(reels),
   stories: many(stories),
-  storyViews: many(storyViews, { relationName: "StoryViews" }),
+  storyViews: many(storyViews, { relationName: "UserStoryViews" }),
   storyReplies: many(storyReplies, { relationName: "StoryAuthor" }),
   comments: many(comments),
   likes: many(likes),
@@ -1262,6 +1262,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   actorNotifications: many(notifications, { relationName: "actor" }),
   notifications: many(notifications, { relationName: "recipient" }),
   reports: many(reports, { relationName: "reporter" }),
+  resolvedReports: many(reports, { relationName: "resolver" }),
   moderationActions: many(moderationActions, { relationName: "moderator" }),
   pendingUploads: many(pendingUploads),
   tusUploads: many(tusUploads),
@@ -1278,8 +1279,32 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   verifications: many(verifications, { relationName: "UserVerifications" }),
 }));
 
+export const deviceTokensRelations = relations(deviceTokens, ({ one }) => ({
+  user: one(users, { fields: [deviceTokens.userId], references: [users.id] }),
+}));
+
+export const followsRelations = relations(follows, ({ one }) => ({
+  follower: one(users, { fields: [follows.followerId], references: [users.id], relationName: "follower" }),
+  following: one(users, { fields: [follows.followingId], references: [users.id], relationName: "following" }),
+}));
+
+export const blocksRelations = relations(blocks, ({ one }) => ({
+  blocker: one(users, { fields: [blocks.blockerId], references: [users.id], relationName: "blocker" }),
+  blocked: one(users, { fields: [blocks.blockedId], references: [users.id], relationName: "blocked" }),
+}));
+
+export const restrictionsRelations = relations(restrictions, ({ one }) => ({
+  restrictor: one(users, { fields: [restrictions.restrictorId], references: [users.id], relationName: "restrictor" }),
+  restricted: one(users, { fields: [restrictions.restrictedId], references: [users.id], relationName: "restricted" }),
+}));
+
+export const closeFriendsRelations = relations(closeFriends, ({ one }) => ({
+  user: one(users, { fields: [closeFriends.userId], references: [users.id], relationName: "user" }),
+  friend: one(users, { fields: [closeFriends.friendId], references: [users.id], relationName: "friend" }),
+}));
+
 export const postsRelations = relations(posts, ({ many, one }) => ({
-  author: one(users, { fields: [posts.authorId], references: [users.id] }),
+  author: one(users, { fields: [posts.authorId], references: [users.id], relationName: "author" }),
   location: one(locations, { fields: [posts.locationId], references: [locations.id] }),
   sponsor: one(users, { fields: [posts.sponsorUserId], references: [users.id], relationName: "SponsoredPosts" }),
   sharedStories: many(stories, { relationName: "SharedStories" }),
@@ -1325,7 +1350,7 @@ export const storyItemsRelations = relations(storyItems, ({ one }) => ({
 
 export const storyViewsRelations = relations(storyViews, ({ one }) => ({
   story: one(stories, { fields: [storyViews.storyId], references: [stories.id], relationName: "StoryViews" }),
-  viewer: one(users, { fields: [storyViews.viewerId], references: [users.id], relationName: "StoryViews" }),
+  viewer: one(users, { fields: [storyViews.viewerId], references: [users.id], relationName: "UserStoryViews" }),
 }));
 
 export const storyRepliesRelations = relations(storyReplies, ({ one }) => ({
@@ -1357,7 +1382,7 @@ export const conversationMembersRelations = relations(conversationMembers, ({ on
 }));
 
 export const messagesRelations = relations(messages, ({ many, one }) => ({
-  conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id], relationName: "messages" }),
+  conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
   sender: one(users, { fields: [messages.senderId], references: [users.id], relationName: "sender" }),
   replyTo: one(messages, { fields: [messages.replyToId], references: [messages.id], relationName: "replies" }),
   replies: many(messages, { relationName: "replies" }),
@@ -1367,6 +1392,20 @@ export const messagesRelations = relations(messages, ({ many, one }) => ({
 export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
   message: one(messages, { fields: [messageReactions.messageId], references: [messages.id] }),
   user: one(users, { fields: [messageReactions.userId], references: [users.id] }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  recipient: one(users, { fields: [notifications.recipientId], references: [users.id], relationName: "recipient" }),
+  actor: one(users, { fields: [notifications.actorId], references: [users.id], relationName: "actor" }),
+}));
+
+export const reportsRelations = relations(reports, ({ one }) => ({
+  reporter: one(users, { fields: [reports.reporterId], references: [users.id], relationName: "reporter" }),
+  resolver: one(users, { fields: [reports.resolvedBy], references: [users.id], relationName: "resolver" }),
+}));
+
+export const moderationActionsRelations = relations(moderationActions, ({ one }) => ({
+  moderator: one(users, { fields: [moderationActions.moderatorId], references: [users.id], relationName: "moderator" }),
 }));
 
 export const hashtagsRelations = relations(hashtags, ({ many }) => ({
@@ -1425,10 +1464,24 @@ export const reelsRelations = relations(reels, ({ many, one }) => ({
   author: one(users, { fields: [reels.authorId], references: [users.id] }),
   audio: one(audioTracks, { fields: [reels.audioId], references: [audioTracks.id] }),
   stories: many(stories, { relationName: "StoryReel" }),
+  comments: many(comments),
+  likes: many(likes),
 }));
 
 export const audioTracksRelations = relations(audioTracks, ({ many }) => ({
   reels: many(reels),
+}));
+
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, { fields: [accounts.userId], references: [users.id] }),
+}));
+
+export const pendingUploadsRelations = relations(pendingUploads, ({ one }) => ({
+  user: one(users, { fields: [pendingUploads.userId], references: [users.id] }),
+}));
+
+export const searchHistoryRelations = relations(searchHistory, ({ one }) => ({
+  user: one(users, { fields: [searchHistory.userId], references: [users.id] }),
 }));
 
 export const sponsoredCampaignsRelations = relations(sponsoredCampaigns, ({ one, many }) => ({
