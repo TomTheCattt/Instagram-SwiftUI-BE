@@ -19,7 +19,7 @@
     "test:contract:staging": "STAGING_API_URL=${STAGING_API_URL} tsx pact/verify-provider.ts",
     "test:contract:production": "PRODUCTION_API_URL=${PRODUCTION_API_URL} tsx pact/verify-provider.ts",
     "pact:publish": "tsx pact/publish-contracts.ts",
-    "pact:can-i-deploy": "pact broker can-i-deploy --pacticipant=instagram-backend --version=${GITHUB_SHA:-local} --to=main --broker-base-url=${PACT_BROKER_URL:-http://localhost:9292}",
+    "pact:can-i-deploy": "pact broker can-i-deploy --pacticipant=instagram-backend --version=${GITHUB_SHA:-local} --to-environment=production --broker-base-url=${PACT_BROKER_URL:-http://localhost:9292}",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "neon:deploy": "neon deploy",
     "neon:dev": "neon dev",
