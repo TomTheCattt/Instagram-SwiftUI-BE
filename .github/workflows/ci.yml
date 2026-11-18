@@ -309,8 +309,10 @@ jobs:
           pact broker can-i-deploy \
             --pacticipant=instagram-backend \
             --version=${{ github.sha }} \
+            --to=main \
             --broker-base-url=http://localhost:9292 \
-            --latest=true
+            --retry-while-unknown=30 \
+            --retry-interval=5
 
       - name: Upload Pact verification results
         if: always()
@@ -343,8 +345,8 @@ jobs:
             pact broker can-i-deploy
             --pacticipant=instagram-backend
             --version="${{ github.sha }}"
+            --to=main
             --broker-base-url="${{ secrets.PACT_BROKER_URL }}"
-            --latest=true
             --retry-while-unknown=60
             --retry-interval=10
           )

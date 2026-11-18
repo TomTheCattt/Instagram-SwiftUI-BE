@@ -81,7 +81,7 @@ jobs:
             --pacticipant=instagram-backend
             --version="${{ steps.get-version.outputs.version }}"
             --broker-base-url="${{ secrets.PACT_BROKER_URL }}"
-            --latest=true
+            --to=main
           )
 
           if [ -n "${{ secrets.PACT_BROKER_USERNAME }}" ]; then

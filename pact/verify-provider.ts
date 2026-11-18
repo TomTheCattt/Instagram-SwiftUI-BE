@@ -712,7 +712,7 @@ async function verifyProvider() {
     providerBaseUrl: PROVIDER_BASE_URL,
     publishVerificationResult: true,
     providerVersion: PROVIDER_VERSION,
-    providerVersionTags: [PROVIDER_BRANCH, "latest"],
+    providerVersionTags: [PROVIDER_BRANCH, "latest", "main"],
     stateHandlers,
     // Custom request filter to add auth headers
     requestFilter: (req, res, next) => {
