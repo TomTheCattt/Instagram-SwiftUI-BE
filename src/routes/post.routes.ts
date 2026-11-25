@@ -748,7 +748,63 @@ postRouter.post("/:id/like", async (c) => {
       orderBy: asc(schema.mediaItems.sortOrder),
     }),
   ]);
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  if (!post) {
+    // Check if it is a reel
+    const reel = await db.query.reels.findFirst({
+      where: eq(schema.reels.id, postId),
+    });
+    if (reel) {
+      const existing = await db.query.likes.findFirst({
+        where: and(eq(schema.likes.userId, user.id), eq(schema.likes.likeableType, "REEL"), eq(schema.likes.likeableId, postId))
+      });
+
+      if (existing) {
+        await db.delete(schema.likes).where(eq(schema.likes.id, existing.id));
+        await db.update(schema.reels)
+          .set({ likesCount: sql`GREATEST(0, ${schema.reels.likesCount} - 1)` })
+          .where(eq(schema.reels.id, postId));
+
+        const updatedReel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+
+        return c.json({
+          success: true,
+          data: {
+            isLiked: false,
+            likesCount: updatedReel?.likesCount ?? Math.max(0, reel.likesCount - 1),
+          },
+        }, 200);
+      }
+
+      await db.insert(schema.likes).values({ userId: user.id, likeableType: "REEL", likeableId: postId });
+      await db.update(schema.reels)
+        .set({ likesCount: sql`${schema.reels.likesCount} + 1` })
+        .where(eq(schema.reels.id, postId));
+
+      if (reel.authorId !== user.id) {
+        await db.insert(schema.notifications).values({
+          recipientId: reel.authorId,
+          actorId: user.id,
+          type: "REEL_LIKE",
+          referenceType: "reel",
+          referenceId: postId,
+          deepLink: `/reels/${postId}`,
+          groupKey: `like:reel:${postId}`,
+        });
+      }
+
+      const updatedReel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+
+      return c.json({
+        success: true,
+        data: {
+          isLiked: true,
+          likesCount: updatedReel?.likesCount ?? (reel.likesCount + 1),
+        },
+      }, 200);
+    }
+
+    throw new HTTPException(404, { message: "Post not found" });
+  }
 
   const existing = await db.query.likes.findFirst({
     where: and(eq(schema.likes.userId, user.id), eq(schema.likes.likeableType, "POST"), eq(schema.likes.likeableId, postId))
@@ -808,7 +864,32 @@ const handleUnlikePost = async (c: any) => {
   const postId = c.req.param("id");
 
   const post = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  if (!post) {
+    const reel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+    if (reel) {
+      const result = await db.delete(schema.likes)
+        .where(and(eq(schema.likes.userId, user.id), eq(schema.likes.likeableType, "REEL"), eq(schema.likes.likeableId, postId)))
+        .returning({ id: schema.likes.id });
+
+      if (result.length > 0) {
+        await db.update(schema.reels)
+          .set({ likesCount: sql`GREATEST(0, ${schema.reels.likesCount} - 1)` })
+          .where(eq(schema.reels.id, postId));
+      }
+
+      const updatedReel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+
+      return c.json({
+        success: true,
+        data: {
+          isLiked: false,
+          likesCount: updatedReel?.likesCount ?? Math.max(0, reel.likesCount - (result.length > 0 ? 1 : 0)),
+        },
+      }, 200);
+    }
+
+    throw new HTTPException(404, { message: "Post not found" });
+  }
 
   const result = await db.delete(schema.likes)
     .where(and(eq(schema.likes.userId, user.id), eq(schema.likes.likeableType, "POST"), eq(schema.likes.likeableId, postId)))
@@ -840,9 +921,13 @@ postRouter.get("/:id/likes", async (c) => {
   const { cursor, perPage } = getCursorPagination(c);
 
   const post = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  const likeableType = post ? "POST" : "REEL";
+  if (!post) {
+    const reel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+    if (!reel) throw new HTTPException(404, { message: "Post not found" });
+  }
 
-  const whereConditions = [eq(schema.likes.likeableType, "POST"), eq(schema.likes.likeableId, postId)];
+  const whereConditions = [eq(schema.likes.likeableType, likeableType), eq(schema.likes.likeableId, postId)];
   if (cursor) {
     whereConditions.push(lt(schema.likes.createdAt, new Date(cursor)));
   }
@@ -878,31 +963,63 @@ postRouter.post("/:id/save", async (c) => {
   const collectionId = c.req.query("collectionId");
 
   const post = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  if (post) {
+    await db.insert(schema.savedItems)
+      .values({ userId: user.id, saveableType: "POST", saveableId: postId, collectionId: collectionId || null })
+      .onConflictDoNothing();
 
-  await db.insert(schema.savedItems)
-    .values({ userId: user.id, saveableType: "POST", saveableId: postId, collectionId: collectionId || null })
-    .onConflictDoNothing();
+    await db.update(schema.posts)
+      .set({ savesCount: sql`${schema.posts.savesCount} + 1` })
+      .where(eq(schema.posts.id, postId));
 
-  await db.update(schema.posts)
-    .set({ savesCount: sql`${schema.posts.savesCount} + 1` })
-    .where(eq(schema.posts.id, postId));
+    return c.body(null, 204);
+  }
 
-  return c.body(null, 204);
+  const reel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+  if (reel) {
+    await db.insert(schema.savedItems)
+      .values({ userId: user.id, saveableType: "REEL", saveableId: postId, collectionId: collectionId || null })
+      .onConflictDoNothing();
+
+    await db.update(schema.reels)
+      .set({ savesCount: sql`${schema.reels.savesCount} + 1` })
+      .where(eq(schema.reels.id, postId));
+
+    return c.body(null, 204);
+  }
+
+  throw new HTTPException(404, { message: "Post not found" });
 });
 
 postRouter.delete("/:id/save", async (c) => {
   const user = getCurrentUser(c);
   const postId = c.req.param("id");
 
-  await db.delete(schema.savedItems)
-    .where(and(eq(schema.savedItems.userId, user.id), eq(schema.savedItems.saveableType, "POST"), eq(schema.savedItems.saveableId, postId)));
+  const post = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
+  if (post) {
+    await db.delete(schema.savedItems)
+      .where(and(eq(schema.savedItems.userId, user.id), eq(schema.savedItems.saveableType, "POST"), eq(schema.savedItems.saveableId, postId)));
 
-  await db.update(schema.posts)
-    .set({ savesCount: sql`${schema.posts.savesCount} - 1` })
-    .where(eq(schema.posts.id, postId));
+    await db.update(schema.posts)
+      .set({ savesCount: sql`${schema.posts.savesCount} - 1` })
+      .where(eq(schema.posts.id, postId));
 
-  return c.body(null, 204);
+    return c.body(null, 204);
+  }
+
+  const reel = await db.query.reels.findFirst({ where: eq(schema.reels.id, postId) });
+  if (reel) {
+    await db.delete(schema.savedItems)
+      .where(and(eq(schema.savedItems.userId, user.id), eq(schema.savedItems.saveableType, "REEL"), eq(schema.savedItems.saveableId, postId)));
+
+    await db.update(schema.reels)
+      .set({ savesCount: sql`${schema.reels.savesCount} - 1` })
+      .where(eq(schema.reels.id, postId));
+
+    return c.body(null, 204);
+  }
+
+  throw new HTTPException(404, { message: "Post not found" });
 });
 
 // ============================================================
@@ -911,16 +1028,16 @@ postRouter.delete("/:id/save", async (c) => {
 
 postRouter.post("/:id/report", zValidator("json", reportSchema), async (c) => {
   const user = getCurrentUser(c);
-  const postId = c.req.param("id");
+  const targetId = c.req.param("id");
   const { reason, description } = c.req.valid("json");
 
-  const post = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  const target = await resolveContentTarget(targetId);
+  if (!target) throw new HTTPException(404, { message: "Post not found" });
 
   await db.insert(schema.reports).values({
     reporterId: user.id,
-    reportedType: "POST",
-    reportedId: postId,
+    reportedType: target.type,
+    reportedId: target.id,
     reason,
     description,
   });
@@ -929,39 +1046,75 @@ postRouter.post("/:id/report", zValidator("json", reportSchema), async (c) => {
 });
 
 // ============================================================
+// CONTENT RESOLUTION HELPERS (Polymorphic Post / Reel / Story)
+// ============================================================
+
+interface ContentTarget {
+  type: "POST" | "REEL" | "STORY";
+  id: string;
+  authorId: string;
+}
+
+async function resolveContentTarget(id: string): Promise<ContentTarget | null> {
+  const post = await db.query.posts.findFirst({
+    where: eq(schema.posts.id, id),
+    columns: { id: true, authorId: true },
+  });
+  if (post) return { type: "POST", id: post.id, authorId: post.authorId };
+
+  const reel = await db.query.reels.findFirst({
+    where: eq(schema.reels.id, id),
+    columns: { id: true, authorId: true },
+  });
+  if (reel) return { type: "REEL", id: reel.id, authorId: reel.authorId };
+
+  const story = await db.query.stories.findFirst({
+    where: eq(schema.stories.id, id),
+    columns: { id: true, authorId: true },
+  });
+  if (story) return { type: "STORY", id: story.id, authorId: story.authorId };
+
+  return null;
+}
+
+async function verifyContentAccess(target: ContentTarget, userId: string): Promise<void> {
+  if (target.authorId === userId) return;
+
+  const author = await db.query.users.findFirst({
+    where: eq(schema.users.id, target.authorId),
+    columns: { isPrivate: true },
+  });
+  if (author?.isPrivate) {
+    const following = await db.query.follows.findFirst({
+      where: and(
+        eq(schema.follows.followerId, userId),
+        eq(schema.follows.followingId, target.authorId),
+        eq(schema.follows.status, "ACCEPTED")
+      ),
+    });
+    if (!following) {
+      throw new HTTPException(403, { message: "This account is private" });
+    }
+  }
+}
+
+// ============================================================
 // COMMENTS ENDPOINTS
 // ============================================================
 
 postRouter.get("/:id/comments", async (c) => {
   const user = getCurrentUser(c);
-  const postId = c.req.param("id");
+  const targetId = c.req.param("id");
   const cursor = c.req.query("cursor");
+  const page = c.req.query("page") ? parseInt(c.req.query("page")!) : undefined;
   const perPage = Math.min(Number(c.req.query("perPage")) || 20, 50);
 
-  const post = await db.query.posts.findFirst({
-    where: eq(schema.posts.id, postId),
-    columns: { id: true, authorId: true }
-  });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  const target = await resolveContentTarget(targetId);
+  if (!target) throw new HTTPException(404, { message: "Post not found" });
 
-  if (post.authorId !== user.id) {
-    const postAuthor = await db.query.users.findFirst({
-      where: eq(schema.users.id, post.authorId),
-      columns: { isPrivate: true }
-    });
-    if (postAuthor?.isPrivate) {
-      const following = await db.query.follows.findFirst({
-        where: and(
-          eq(schema.follows.followerId, user.id),
-          eq(schema.follows.followingId, post.authorId),
-          eq(schema.follows.status, "ACCEPTED")
-        )
-      });
-      if (!following) throw new HTTPException(403, { message: "This account is private" });
-    }
-  }
+  await verifyContentAccess(target, user.id);
 
-  const result = await getComments("POST", postId, user.id, cursor, perPage);
+  const result = await getComments(target.type, target.id, user.id, cursor, perPage, page);
 
   return c.json({
     success: true,
@@ -969,58 +1122,47 @@ postRouter.get("/:id/comments", async (c) => {
       items: result.items,
       nextCursor: result.nextCursor,
       hasMore: result.hasMore,
+      page: result.page,
+      perPage: result.perPage,
+      total: result.total,
     },
   });
 });
 
 postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) => {
   const user = getCurrentUser(c);
-  const postId = c.req.param("id");
+  const targetId = c.req.param("id");
   const body = c.req.valid("json");
   const commentText = body.text || body.content || "";
   const { parentId } = body;
 
-  const post = await db.query.posts.findFirst({
-    where: eq(schema.posts.id, postId),
-    columns: { id: true, authorId: true }
-  });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  const target = await resolveContentTarget(targetId);
+  if (!target) throw new HTTPException(404, { message: "Post not found" });
 
-  if (post.authorId !== user.id) {
-    const postAuthor = await db.query.users.findFirst({
-      where: eq(schema.users.id, post.authorId),
-      columns: { isPrivate: true }
-    });
-    if (postAuthor?.isPrivate) {
-      const following = await db.query.follows.findFirst({
-        where: and(
-          eq(schema.follows.followerId, user.id),
-          eq(schema.follows.followingId, post.authorId),
-          eq(schema.follows.status, "ACCEPTED")
-        )
-      });
-      if (!following) throw new HTTPException(403, { message: "This account is private" });
-    }
-  }
+  await verifyContentAccess(target, user.id);
 
   const comment = await createComment({
-    commentableType: "POST",
-    commentableId: postId,
+    commentableType: target.type,
+    commentableId: target.id,
     authorId: user.id,
     text: commentText,
     parentId,
   });
 
-  if (post.authorId !== user.id) {
+  const refType = target.type === "REEL" ? "reel" : target.type === "STORY" ? "story" : "post";
+  const deepLink = target.type === "REEL" ? `/reels/${target.id}` : target.type === "STORY" ? `/stories/${target.id}` : `/posts/${target.id}`;
+  const notifType = target.type === "REEL" ? "REEL_COMMENT" : target.type === "STORY" ? "STORY_REPLY" : "COMMENT";
+
+  if (target.authorId !== user.id) {
     await db.insert(schema.notifications).values({
-      recipientId: post.authorId,
+      recipientId: target.authorId,
       actorId: user.id,
-      type: "COMMENT",
-      referenceType: "post",
-      referenceId: postId,
+      type: notifType,
+      referenceType: refType,
+      referenceId: target.id,
       previewText: commentText.substring(0, 100),
-      deepLink: `/posts/${postId}`,
-      groupKey: `comment:post:${postId}`,
+      deepLink,
+      groupKey: `comment:${refType}:${target.id}`,
     });
   }
 
@@ -1028,16 +1170,16 @@ postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) =>
     const parentComment = await db.query.comments.findFirst({
       where: eq(schema.comments.id, parentId),
     });
-    if (parentComment && parentComment.authorId !== user.id && parentComment.authorId !== post.authorId) {
+    if (parentComment && parentComment.authorId !== user.id && parentComment.authorId !== target.authorId) {
       await db.insert(schema.notifications).values({
         recipientId: parentComment.authorId,
         actorId: user.id,
         type: "COMMENT",
-        referenceType: "post",
-        referenceId: postId,
+        referenceType: refType,
+        referenceId: target.id,
         previewText: commentText.substring(0, 100),
-        deepLink: `/posts/${postId}`,
-        groupKey: `comment:post:${postId}`,
+        deepLink,
+        groupKey: `comment:${refType}:${target.id}`,
       });
     }
   }
@@ -1047,16 +1189,13 @@ postRouter.post("/:id/comments", zValidator("json", commentSchema), async (c) =>
 
 postRouter.delete("/:id/comments/:commentId", async (c) => {
   const user = getCurrentUser(c);
-  const postId = c.req.param("id");
+  const targetId = c.req.param("id");
   const commentId = c.req.param("commentId");
 
-  const post = await db.query.posts.findFirst({
-    where: eq(schema.posts.id, postId),
-    columns: { authorId: true },
-  });
-  if (!post) throw new HTTPException(404, { message: "Post not found" });
+  const target = await resolveContentTarget(targetId);
+  if (!target) throw new HTTPException(404, { message: "Post not found" });
 
-  await deleteComment(commentId, user.id, post.authorId);
+  await deleteComment(commentId, user.id, target.authorId);
 
   return c.body(null, 204);
 });
@@ -1070,13 +1209,13 @@ postRouter.patch("/comments/:commentId", zValidator("json", z.object({ text: z.s
   return c.json({ success: true, data: { comment: updatedComment } });
 });
 
-postRouter.post("/comments/:commentId/like", async (c) => {
+const handleLikeComment = async (c: any) => {
   const user = getCurrentUser(c);
   const commentId = c.req.param("commentId");
 
   await likeComment(commentId, user.id);
   return c.body(null, 204);
-});
+};
 
 const handleUnlikeComment = async (c: any) => {
   const user = getCurrentUser(c);
@@ -1086,8 +1225,12 @@ const handleUnlikeComment = async (c: any) => {
   return c.body(null, 204);
 };
 
+postRouter.post("/comments/:commentId/like", handleLikeComment);
+postRouter.post("/:id/comments/:commentId/like", handleLikeComment);
 postRouter.delete("/comments/:commentId/like", handleUnlikeComment);
+postRouter.delete("/:id/comments/:commentId/like", handleUnlikeComment);
 postRouter.post("/comments/:commentId/unlike", handleUnlikeComment);
+postRouter.post("/:id/comments/:commentId/unlike", handleUnlikeComment);
 
 postRouter.post("/comments/:commentId/report", zValidator("json", reportSchema), async (c) => {
   const user = getCurrentUser(c);

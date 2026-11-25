@@ -11,6 +11,7 @@ export interface CommentWithAuthor {
   id: string;
   commentableType: string;
   commentableId: string;
+  postId?: string;
   authorId: string;
   parentId: string | null;
   text: string;
@@ -38,6 +39,9 @@ export interface PaginatedComments {
   items: CommentWithAuthor[];
   nextCursor: string | null;
   hasMore: boolean;
+  page?: number;
+  perPage?: number;
+  total?: number;
 }
 
 export interface CreateCommentInput {
@@ -158,6 +162,19 @@ async function getRestrictedUserIds(userId: string): Promise<string[]> {
 // ============================================================
 
 /**
+ * Helper to ensure comment object has compatibility fields (postId, replies)
+ */
+function attachCompatibilityFields(c: CommentWithAuthor): CommentWithAuthor {
+  const children = (c.children || []).map(attachCompatibilityFields);
+  return {
+    ...c,
+    postId: c.commentableId,
+    children,
+    replies: children,
+  };
+}
+
+/**
  * Get top-level comments for a post/reel/story with cursor-based pagination
  * Supports threaded replies up to 2 levels (parent + 1 level of children)
  */
@@ -166,7 +183,8 @@ export async function getComments(
   commentableId: string,
   userId: string,
   cursor?: string,
-  perPage: number = 20
+  perPage: number = 20,
+  page?: number
 ): Promise<PaginatedComments> {
   // Get blocked and restricted users to filter out
   const [blockedIds, restrictedIds] = await Promise.all([
@@ -189,20 +207,33 @@ export async function getComments(
     whereConditions.push(not(inArray(schema.comments.authorId, excludedUserIds)));
   }
 
+  // Count total top-level comments for offset pagination and metadata
+  const totalResult = await db
+    .select({ count: count() })
+    .from(schema.comments)
+    .where(and(...whereConditions));
+  const total = Number(totalResult[0]?.count || 0);
+
   // Add cursor condition if provided
   if (cursor) {
     whereConditions.push(lt(schema.comments.createdAt, new Date(cursor)));
   }
 
   // Fetch top-level comments (+1 to check hasMore)
-  const commentsList = await buildCommentQuery(userId)
+  let query = buildCommentQuery(userId)
     .where(and(...whereConditions))
     .limit(perPage + 1)
     .orderBy(desc(schema.comments.createdAt));
 
-  const hasMore = commentsList.length > perPage;
-  const items = hasMore ? commentsList.slice(0, perPage) : commentsList;
-  const nextCursor = hasMore ? items[items.length - 1].createdAt.toISOString() : null;
+  if (!cursor && page && page > 1) {
+    query = (query as any).offset((page - 1) * perPage);
+  }
+
+  const commentsList = await query;
+
+  const hasMore = commentsList.length > perPage || (page ? page * perPage < total : false);
+  const items = commentsList.slice(0, perPage);
+  const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].createdAt.toISOString() : null;
 
   // Get reply previews for each top-level comment (up to 2 levels deep)
   const commentIds = items.map((c) => c.id);
@@ -211,7 +242,7 @@ export async function getComments(
 
     // Build nested structure
     const commentMap = new Map<string, CommentWithAuthor>(
-      items.map((c) => [c.id, { ...c, children: [], isLiked: false } as CommentWithAuthor])
+      items.map((c) => [c.id, { ...c, children: [], replies: [], isLiked: false } as CommentWithAuthor])
     );
 
     for (const reply of replies) {
@@ -239,17 +270,23 @@ export async function getComments(
     }
 
     return {
-      items: Array.from(commentMap.values()),
+      items: Array.from(commentMap.values()).map(attachCompatibilityFields),
       nextCursor,
       hasMore,
+      page: page || 1,
+      perPage,
+      total,
     };
   }
 
   // No comments, check likes for empty set
   return {
-    items: items.map((c) => ({ ...c, children: [], replies: [], isLiked: false } as CommentWithAuthor)),
+    items: items.map((c) => attachCompatibilityFields({ ...c, children: [], replies: [], isLiked: false } as CommentWithAuthor)),
     nextCursor,
     hasMore,
+    page: page || 1,
+    perPage,
+    total,
   };
 }
 
@@ -359,7 +396,7 @@ export async function getReplies(
   const likedSet = await checkCommentLiked(replyIds, userId);
 
   return {
-    items: items.map((r) => ({ ...r, children: [], isLiked: likedSet.has(r.id) } as CommentWithAuthor)),
+    items: items.map((r) => attachCompatibilityFields({ ...r, children: [], replies: [], isLiked: likedSet.has(r.id) } as CommentWithAuthor)),
     nextCursor,
     hasMore,
   };
@@ -418,7 +455,7 @@ export async function createComment(input: CreateCommentInput): Promise<CommentW
     .limit(1)
     .then((rows) => rows[0]);
 
-  return { ...createdComment!, children: [], isLiked: false } as CommentWithAuthor;
+  return attachCompatibilityFields({ ...createdComment!, children: [], replies: [], isLiked: false } as CommentWithAuthor);
 }
 
 /**
@@ -456,7 +493,7 @@ export async function updateComment(
     .limit(1)
     .then((rows) => rows[0]);
 
-  return { ...updatedComment!, children: [], isLiked: false } as CommentWithAuthor;
+  return attachCompatibilityFields({ ...updatedComment!, children: [], replies: [], isLiked: false } as CommentWithAuthor);
 }
 
 /**
