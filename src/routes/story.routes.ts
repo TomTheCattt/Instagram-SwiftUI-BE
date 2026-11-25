@@ -56,22 +56,54 @@ storyRouter.get("/feed", async (c) => {
 
   const feed = await storyService.getFeed(user.id);
 
-  const mappedStories = (feed || []).map((s: any) => ({
-    userId: s.userId || s.authorId || user.id,
-    username: s.username || "user",
-    displayName: s.displayName || s.fullName || s.username || "User",
-    avatarUrl: s.avatarUrl || null,
-    isVerified: s.isVerified ?? false,
-    hasUnviewed: s.hasUnviewed ?? false,
-    items: (s.items || []).map((it: any) => ({
+  const mappedStories = (feed || []).map((s: any) => {
+    const authorUser = s.author || {
+      id: s.userId || s.authorId || user.id,
+      username: s.username || "user",
+      fullName: s.displayName || s.fullName || null,
+      avatarUrl: s.avatarUrl || null,
+      isVerified: s.isVerified ?? false,
+    };
+
+    const storyItems = (s.items || []).map((it: any) => ({
       id: it.id,
+      storyId: it.storyId || s.id,
       type: (it.type || "image").toLowerCase(),
       mediaUrl: it.mediaUrl,
-      duration: parseInt(String(it.duration), 10) || 5,
+      thumbnailUrl: it.thumbnailUrl || null,
+      duration: parseFloat(String(it.duration)) || 5.0,
+      sortOrder: it.sortOrder ?? 0,
+      stickerType: it.stickerType || null,
+      stickerData: it.stickerData || null,
       isViewed: it.isViewed ?? false,
-      createdAt: it.createdAt || new Date().toISOString(),
-    })),
-  }));
+      createdAt: it.createdAt ? (it.createdAt instanceof Date ? it.createdAt.toISOString() : it.createdAt) : new Date().toISOString(),
+    }));
+
+    return {
+      id: s.id,
+      authorId: s.authorId || s.userId || user.id,
+      userId: s.userId || s.authorId || user.id,
+      author: authorUser,
+      username: authorUser.username,
+      displayName: authorUser.fullName || authorUser.username,
+      avatarUrl: authorUser.avatarUrl,
+      isVerified: authorUser.isVerified,
+      hasUnviewed: s.hasUnviewed ?? false,
+      audience: s.audience || "PUBLIC",
+      createdAt: s.createdAt ? (s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt) : new Date().toISOString(),
+      expiresAt: s.expiresAt ? (s.expiresAt instanceof Date ? s.expiresAt.toISOString() : s.expiresAt) : null,
+      items: storyItems,
+      stories: s.stories || [
+        {
+          id: s.id,
+          createdAt: s.createdAt,
+          expiresAt: s.expiresAt,
+          audience: s.audience,
+          items: storyItems,
+        }
+      ],
+    };
+  });
 
   return c.json({
     success: true,
@@ -101,18 +133,18 @@ storyRouter.post("/", zValidator("json", createStorySchema), async (c) => {
   const body = c.req.valid("json");
   const audience = (body.audience === "close_friends" ? "close_friends" : "followers") as any;
   const items = body.items && body.items.length > 0 ? body.items.map((it: any, idx: number) => ({
-    mediaUrl: it.mediaUrl || "https://storage.example.com/stories/new_item.jpg",
+    mediaUrl: it.mediaUrl,
     type: (it.type.toUpperCase() === "VIDEO" ? "VIDEO" : "IMAGE") as any,
     duration: it.duration || 5,
     sortOrder: it.sortOrder ?? idx,
-  })) : [
+  })) : ((body as any).mediaUrl ? [
     {
-      mediaUrl: "https://storage.example.com/stories/new_item.jpg",
+      mediaUrl: (body as any).mediaUrl,
       type: ((body.type || "IMAGE").toUpperCase() === "VIDEO" ? "VIDEO" : "IMAGE") as any,
       duration: 5,
       sortOrder: 0,
     }
-  ];
+  ] : []);
 
   const storyService = getStoryService();
   const story = await storyService.createStory({

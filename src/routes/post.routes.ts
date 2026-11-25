@@ -530,28 +530,20 @@ postRouter.get("/:id", async (c) => {
   ]);
 
   const authorUser = post.author;
-  const postUuid = post.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : post.id;
-  const mappedMedia = (mediaItems.length > 0 ? mediaItems : [
-    {
-      id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-      type: "image",
-      url: "https://storage.example.com/posts/abc123.jpg",
-      thumbnailUrl: "https://storage.example.com/posts/thumb_abc123.jpg",
-      sortOrder: 0,
-    }
-  ]).map((m) => ({
-    id: m.id || "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+  const postUuid = post.id;
+  const mappedMedia = mediaItems.map((m) => ({
+    id: m.id,
     type: (m.type || "image").toLowerCase(),
-    url: m.url || "https://storage.example.com/posts/abc123.jpg",
-    thumbnailUrl: m.thumbnailUrl || "https://storage.example.com/posts/thumb_abc123.jpg",
+    url: m.url,
+    thumbnailUrl: m.thumbnailUrl || m.url,
     sortOrder: m.sortOrder ?? 0,
   }));
 
   const mappedLocation = post.locationName ? {
-    id: post.locationId || "e2490de5-5bd3-43d5-b7c4-526e33f71304",
+    id: post.locationId || post.id,
     name: post.locationName,
-    latitude: post.locationLat ? Number(post.locationLat) : 37.7749,
-    longitude: post.locationLng ? Number(post.locationLng) : -122.4194,
+    latitude: post.locationLat ? Number(post.locationLat) : null,
+    longitude: post.locationLng ? Number(post.locationLng) : null,
   } : null;
 
   return c.json({
@@ -564,7 +556,7 @@ postRouter.get("/:id", async (c) => {
           id: authorUser.id,
           username: authorUser.username,
           displayName: authorUser.fullName || authorUser.username,
-          avatarUrl: authorUser.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
+          avatarUrl: authorUser.avatarUrl || null,
         },
         media: mappedMedia,
         location: mappedLocation,
@@ -590,20 +582,14 @@ postRouter.post("/", zValidator("json", createPostSchema), async (c) => {
   const [post] = await db.insert(schema.posts).values({
     authorId: user.id,
     caption,
-    locationName: locationName || "San Francisco, CA",
-    locationLat: toDecimalString(locationLat ?? 37.7749),
-    locationLng: toDecimalString(locationLng ?? -122.4194),
+    locationName: locationName || null,
+    locationLat: locationLat !== undefined && locationLat !== null ? toDecimalString(locationLat) : null,
+    locationLng: locationLng !== undefined && locationLng !== null ? toDecimalString(locationLng) : null,
     audience: audience === "FOLLOWERS" || audience === "CLOSE_FRIENDS" ? audience : "PUBLIC",
     closeFriendsOnly: closeFriendsOnly || false,
   }).returning();
 
-  const mediaList = body.media || (body.mediaIds || [crypto.randomUUID()]).map((id, index) => ({
-    url: "https://storage.example.com/posts/abc123.jpg",
-    type: "IMAGE",
-    width: 1080,
-    height: 1080,
-    sortOrder: index,
-  }));
+  const mediaList = body.media || [];
 
   if (mediaList.length > 0) {
     await db.insert(schema.mediaItems).values(mediaList.map((m, index) => ({

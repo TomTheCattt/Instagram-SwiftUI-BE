@@ -146,8 +146,8 @@ reportRouter.post("/", zValidator("json", createReportSchema), async (c) => {
   return c.json({ success: true, data: { report } }, 201);
 });
 
-// GET /v1/reports/my - Get current user's reports
-reportRouter.get("/my", async (c) => {
+// GET /v1/reports/my & /v1/reports/me - Get current user's reports
+const handleGetUserReports = async (c: any) => {
   const user = getCurrentUser(c);
   const { page, perPage, offset } = getPagination(c);
   const status = c.req.query("status") as "PENDING" | "REVIEWING" | "RESOLVED" | "DISMISSED" | undefined;
@@ -189,7 +189,10 @@ reportRouter.get("/my", async (c) => {
       hasMore: page * perPage < (total[0]?.count || 0),
     },
   });
-});
+};
+
+reportRouter.get("/my", handleGetUserReports);
+reportRouter.get("/me", handleGetUserReports);
 
 // GET /v1/reports/:id - Get report details
 reportRouter.get("/:id", async (c) => {

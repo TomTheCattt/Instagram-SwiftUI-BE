@@ -30,6 +30,7 @@ export interface CommentWithAuthor {
     isVerified: boolean;
   };
   children?: CommentWithAuthor[];
+  replies?: CommentWithAuthor[];
   isLiked?: boolean;
 }
 
@@ -225,14 +226,16 @@ export async function getComments(
     const allCommentIds = [...commentIds, ...replies.map((r) => r.id)];
     const likedSet = await checkCommentLiked(allCommentIds, userId);
 
-    // Attach isLiked
+    // Attach isLiked and replies alias
     for (const comment of commentMap.values()) {
       comment.isLiked = likedSet.has(comment.id);
       if (comment.children) {
         for (const child of comment.children) {
           child.isLiked = likedSet.has(child.id);
+          child.replies = child.children || [];
         }
       }
+      comment.replies = comment.children || [];
     }
 
     return {
@@ -244,7 +247,7 @@ export async function getComments(
 
   // No comments, check likes for empty set
   return {
-    items: items.map((c) => ({ ...c, children: [], isLiked: false } as CommentWithAuthor)),
+    items: items.map((c) => ({ ...c, children: [], replies: [], isLiked: false } as CommentWithAuthor)),
     nextCursor,
     hasMore,
   };

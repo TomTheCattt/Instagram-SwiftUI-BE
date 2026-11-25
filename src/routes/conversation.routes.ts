@@ -121,18 +121,24 @@ conversationRouter.get("/", async (c) => {
     });
 
     const lastMsg = conv.lastMessage as Record<string, unknown> | undefined;
+    const lastMsgObj = lastMsg ? {
+      id: lastMsg.id as string,
+      type: ((lastMsg.contentType || "text") as string).toLowerCase(),
+      content: (lastMsg.textContent || "") as string,
+      senderId: lastMsg.senderId as string,
+      status: (lastMsg.status || "SENT") as string,
+      createdAt: (lastMsg.createdAt ? (lastMsg.createdAt instanceof Date ? lastMsg.createdAt.toISOString() : lastMsg.createdAt) : new Date().toISOString()) as string,
+    } : null;
+
     return {
       ...conv,
       id: convId,
       type: conv.isGroup ? "group" : "direct",
+      groupAvatar: (conv.groupAvatarUrl || null) as string | null,
+      lastMessageText: (lastMsg?.textContent || conv.lastMessageText || null) as string | null,
+      lastMessageAt: (lastMsg?.createdAt || conv.lastMessageAt || null) as string | null,
       participants,
-      lastMessage: lastMsg ? {
-        id: lastMsg.id as string,
-        type: ((lastMsg.contentType || "text") as string).toLowerCase(),
-        content: (lastMsg.textContent || "") as string,
-        senderId: lastMsg.senderId as string,
-        createdAt: lastMsg.createdAt as string,
-      } : null,
+      lastMessage: lastMsgObj,
       unreadCount: (conv.unreadCount ?? 0) as number,
       isMuted: (conv.isMuted ?? false) as boolean,
       updatedAt: conv.updatedAt,
@@ -170,26 +176,18 @@ conversationRouter.post("/", zValidator("json", createConversationSchema), async
     const u = m.user as Record<string, unknown> | undefined;
     return {
       id: (u?.id || m.userId) as string,
-      username: (u?.username || "friend") as string,
-      displayName: (u?.fullName || u?.username || "Friend Name") as string,
-      avatarUrl: (u?.avatarUrl || "https://storage.example.com/avatars/friend.jpg") as string,
+      username: (u?.username || "user") as string,
+      displayName: (u?.fullName || u?.username || "User") as string,
+      avatarUrl: (u?.avatarUrl || null) as string | null,
       isVerified: (u?.isVerified ?? false) as boolean,
     };
   });
 
   const mappedConversation = {
     ...conv,
-    id: conv?.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (conv?.id || crypto.randomUUID()),
+    id: conv?.id,
     type: conv?.isGroup ? "group" : "direct",
-    participants: mappedParticipants.length > 0 ? mappedParticipants : [
-      {
-        id: participantIds[0] || "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-        username: "friend",
-        displayName: "Friend Name",
-        avatarUrl: "https://storage.example.com/avatars/friend.jpg",
-        isVerified: false,
-      }
-    ],
+    participants: mappedParticipants,
     createdAt: conv?.createdAt || new Date().toISOString(),
   };
 
@@ -397,33 +395,27 @@ conversationRouter.get("/:id/messages", async (c) => {
 
   const rawItems = (result.items || []) as Record<string, unknown>[];
   const mappedMessages = rawItems.map((m) => {
-    const msgId = (m.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : m.id) as string;
-    const convId = (m.conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : m.conversationId) as string;
     const reactions = (m.reactions || []) as Record<string, unknown>[];
-    const reactionsGrouped = reactions.length > 0
-      ? reactions.map((r) => ({
-          emoji: (r.emoji || "👍") as string,
-          count: 1,
-          userIds: [(r.userId || "e2490de5-5bd3-43d5-b7c4-526e33f71304") as string],
-        }))
-      : [
-          {
-            emoji: "👍",
-            count: 1,
-            userIds: ["e2490de5-5bd3-43d5-b7c4-526e33f71304"],
-          },
-        ];
+    const reactionsGrouped = reactions.map((r) => ({
+      emoji: (r.emoji || "👍") as string,
+      count: Number(r.count) || 1,
+      userIds: Array.isArray(r.userIds) ? r.userIds : [(r.userId as string)].filter(Boolean),
+    }));
 
     return {
       ...m,
-      id: msgId,
-      conversationId: convId,
+      id: m.id as string,
+      conversationId: m.conversationId as string,
+      contentType: ((m.contentType as string) || "TEXT").toUpperCase(),
       type: (((m.contentType as string) || "text")).toLowerCase(),
+      textContent: (m.textContent || null) as string | null,
       content: (m.textContent || "") as string,
       senderId: (m.senderId || user.id) as string,
+      status: (m.status || "SENT") as string,
       replyToId: (m.replyToId || null) as string | null,
       isEdited: (m.isEdited ?? false) as boolean,
       isDeleted: m.deletedAt ? true : false,
+      isEphemeral: (m.isEphemeral ?? false) as boolean,
       reactions: reactionsGrouped,
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,

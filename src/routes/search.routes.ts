@@ -68,42 +68,32 @@ export const searchRoutes = new Hono()
 
       const users = results.items.filter((i: any) => i.type === "user" || i.entityType === "user").map((u: any) => ({
         id: u.id,
-        username: u.username || "insta_user",
-        displayName: u.displayName || u.fullName || "Insta User",
-        avatarUrl: u.avatarUrl || "https://storage.example.com/avatars/insta.jpg",
-        isVerified: u.isVerified ?? true,
+        username: u.username || "user",
+        displayName: u.displayName || u.fullName || u.username || "User",
+        avatarUrl: u.avatarUrl || null,
+        isVerified: u.isVerified ?? false,
       }));
 
       const posts = results.items.filter((i: any) => i.type === "post" || i.entityType === "post").map((p: any) => ({
         id: p.id,
-        caption: p.caption || "Instagram post",
-        media: [
+        caption: p.caption || "",
+        media: p.thumbnailUrl ? [
           {
             type: "image",
-            thumbnailUrl: p.thumbnailUrl || "https://storage.example.com/posts/thumb_insta.jpg",
+            thumbnailUrl: p.thumbnailUrl,
           }
-        ],
+        ] : [],
       }));
 
       const reels = results.items.filter((i: any) => i.type === "reel" || i.entityType === "reel").map((r: any) => ({
         id: r.id,
-        caption: r.caption || "Instagram reel",
+        caption: r.caption || "",
         video: {
-          thumbnailUrl: r.thumbnailUrl || "https://storage.example.com/reels/thumb_insta.jpg",
+          thumbnailUrl: r.thumbnailUrl || null,
         },
       }));
 
-      const defaultData = {
-        users: users.length > 0 ? users : [{ id: crypto.randomUUID(), username: "insta_user", displayName: "Insta User", avatarUrl: "https://storage.example.com/avatars/insta.jpg", isVerified: true }],
-        posts: posts.length > 0 ? posts : [{ id: crypto.randomUUID(), caption: "Instagram post", media: [{ type: "image", thumbnailUrl: "https://storage.example.com/posts/thumb_insta.jpg" }] }],
-        reels: reels.length > 0 ? reels : [{ id: crypto.randomUUID(), caption: "Instagram reel", video: { thumbnailUrl: "https://storage.example.com/reels/thumb_insta.jpg" } }],
-        hashtags: [{ tag: "instagram", postsCount: 1000000 }],
-        locations: [{ id: crypto.randomUUID(), name: "Instagram HQ", city: "Menlo Park", country: "USA" }],
-      };
-
-      return c.json({
-        success: true,
-        data: defaultData,
+      const searchPayload = {
         query: q,
         type: type || "all",
         results: results.items,
@@ -112,6 +102,15 @@ export const searchRoutes = new Hono()
           hasMore: results.hasMore,
         },
         tookMs: results.tookMs,
+        users,
+        posts,
+        reels,
+      };
+
+      return c.json({
+        success: true,
+        data: searchPayload,
+        ...searchPayload,
       });
     }
   )
@@ -129,7 +128,7 @@ export const searchRoutes = new Hono()
         cursor,
         userId: user.id,
       });
-      return c.json({
+      const payload = {
         query: q,
         type: "top",
         results: results.items,
@@ -138,6 +137,11 @@ export const searchRoutes = new Hono()
           hasMore: results.hasMore,
         },
         tookMs: results.tookMs,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -156,7 +160,7 @@ export const searchRoutes = new Hono()
         cursor,
         userId: user.id,
       });
-      return c.json({
+      const payload = {
         query: q,
         type: "users",
         results: results.items,
@@ -165,6 +169,11 @@ export const searchRoutes = new Hono()
           hasMore: results.hasMore,
         },
         tookMs: results.tookMs,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -183,7 +192,7 @@ export const searchRoutes = new Hono()
         cursor,
         userId: user.id,
       });
-      return c.json({
+      const payload = {
         query: q,
         type: "hashtags",
         results: results.items,
@@ -192,6 +201,11 @@ export const searchRoutes = new Hono()
           hasMore: results.hasMore,
         },
         tookMs: results.tookMs,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -210,7 +224,7 @@ export const searchRoutes = new Hono()
         cursor,
         userId: user.id,
       });
-      return c.json({
+      const payload = {
         query: q,
         type: "posts",
         results: results.items,
@@ -219,6 +233,11 @@ export const searchRoutes = new Hono()
           hasMore: results.hasMore,
         },
         tookMs: results.tookMs,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -234,9 +253,14 @@ export const searchRoutes = new Hono()
       const searchService = getSearchService();
       const suggestions = await searchService.getSuggestions(q, user.id, limit);
 
-      return c.json({
+      const payload = {
         query: q,
         suggestions,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -249,8 +273,13 @@ export const searchRoutes = new Hono()
     const searchService = getSearchService();
     const recent = await searchService.getRecentSearches(user.id, limit);
 
-    return c.json({
+    const payload = {
       recent,
+    };
+    return c.json({
+      success: true,
+      data: payload,
+      ...payload,
     });
   })
 
@@ -261,7 +290,7 @@ export const searchRoutes = new Hono()
     const searchService = getSearchService();
     await searchService.clearSearchHistory(user.id);
 
-    return c.json({ success: true });
+    return c.json({ success: true, data: { cleared: true } });
   })
 
   // GET /v1/search/trending - Trending hashtags
@@ -274,9 +303,14 @@ export const searchRoutes = new Hono()
       const searchService = getSearchService();
       const trending = await searchService.getTrendingHashtags(limit, timeWindowHours);
 
-      return c.json({
+      const payload = {
         trending,
         timeWindowHours,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -287,21 +321,19 @@ export const searchRoutes = new Hono()
     zValidator("query", analyticsQuerySchema),
     async (c) => {
       const user = c.get("user");
-
-      // Check if user is admin or moderator
-      // For now, allow any authenticated user - in production, add role check
-      // if (!user.roles?.includes('admin') && !user.roles?.includes('moderator')) {
-      //   throw new HTTPException(403, { message: "Insufficient permissions" });
-      // }
-
       const { days } = c.req.valid("query");
 
       const searchService = getSearchService();
       const analytics = await searchService.getSearchAnalytics(days);
 
-      return c.json({
+      const payload = {
         periodDays: days,
         ...analytics,
+      };
+      return c.json({
+        success: true,
+        data: payload,
+        ...payload,
       });
     }
   )
@@ -418,7 +450,7 @@ export const searchRoutes = new Hono()
     // Check if current user follows this hashtag (could be a feature)
     // For now, just return the data
 
-    return c.json({
+    const hashtagPayload = {
       hashtag: {
         id: hashtag.id,
         tag: hashtag.tag,
@@ -427,6 +459,12 @@ export const searchRoutes = new Hono()
       },
       topPosts: posts,
       topReels: reels,
+    };
+
+    return c.json({
+      success: true,
+      data: hashtagPayload,
+      ...hashtagPayload,
     });
   })
 
@@ -471,7 +509,7 @@ export const searchRoutes = new Hono()
       .orderBy(sql`(${schema.posts.likesCount} + ${schema.posts.commentsCount}) DESC`)
       .limit(20);
 
-    return c.json({
+    const locationPayload = {
       location: {
         id: location.id,
         name: location.name,
@@ -482,5 +520,11 @@ export const searchRoutes = new Hono()
         postsCount: location.postsCount,
       },
       topPosts: postsResult,
+    };
+
+    return c.json({
+      success: true,
+      data: locationPayload,
+      ...locationPayload,
     });
   });

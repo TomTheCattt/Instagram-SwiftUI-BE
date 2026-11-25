@@ -67,26 +67,20 @@ reelRouter.get("/feed", async (c) => {
   const reelService = createReelService(user.id);
   const result = await reelService.getFeed(cursor, perPage);
 
-  const items = (result.items || []).map((r: any) => ({
-    id: r.id,
-    caption: r.caption,
-    user: {
-      id: r.author?.id || r.authorId || user.id,
+  const items = (result.items || []).map((r: any) => {
+    const authorId = r.author?.id || r.authorId || user.id;
+    const authorUser = {
+      id: authorId,
       username: r.author?.username || r.username || "user",
-      displayName: r.author?.fullName || r.author?.username || r.displayName || r.fullName || "User",
       fullName: r.author?.fullName || r.fullName || null,
+      displayName: r.author?.fullName || r.author?.username || r.displayName || r.fullName || "User",
       avatarUrl: r.author?.avatarUrl || r.avatarUrl || null,
       isVerified: r.author?.isVerified ?? r.isVerified ?? false,
-    },
-    video: {
-      id: r.id,
-      url: r.videoUrl,
-      thumbnailUrl: r.thumbnailUrl || r.videoUrl,
-      duration: Number(r.duration) || 15.0,
-      width: 1080,
-      height: 1920,
-    },
-    audio: r.audio ? {
+      isFollowing: r.author?.isFollowing ?? false,
+    };
+
+    const durationNum = Number(r.duration) || 15.0;
+    const audioObj = r.audio ? {
       id: r.audio.id,
       title: r.audio.name || r.audio.title || "Original Audio",
       name: r.audio.name || "Original Audio",
@@ -100,16 +94,43 @@ reelRouter.get("/feed", async (c) => {
       artist: r.audioArtist || "Original Artist",
       url: null,
       duration: null,
-    } : null),
-    videoUrl: r.videoUrl,
-    thumbnailUrl: r.thumbnailUrl,
-    likesCount: r.likesCount || 0,
-    commentsCount: r.commentsCount || 0,
-    sharesCount: r.sharesCount || 0,
-    isLiked: r.isLiked || false,
-    isSaved: r.isSaved || false,
-    createdAt: r.createdAt ? (r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt) : new Date().toISOString(),
-  }));
+    } : null);
+
+    return {
+      id: r.id,
+      authorId,
+      author: authorUser,
+      user: authorUser,
+      caption: r.caption,
+      videoUrl: r.videoUrl,
+      thumbnailUrl: r.thumbnailUrl || null,
+      duration: durationNum,
+      video: {
+        id: r.id,
+        url: r.videoUrl,
+        thumbnailUrl: r.thumbnailUrl || r.videoUrl,
+        duration: durationNum,
+        width: 1080,
+        height: 1920,
+      },
+      audioId: r.audioId || r.audio?.id || null,
+      audioName: r.audioName || r.audio?.name || null,
+      audioArtist: r.audioArtist || r.audio?.artist || null,
+      audioCoverUrl: r.audioCoverUrl || null,
+      isOriginalAudio: r.isOriginalAudio ?? false,
+      audio: audioObj,
+      likesCount: r.likesCount || 0,
+      commentsCount: r.commentsCount || 0,
+      sharesCount: r.sharesCount || 0,
+      savesCount: r.savesCount || 0,
+      viewsCount: r.viewsCount || 0,
+      allowRemix: r.allowRemix ?? true,
+      allowDownload: r.allowDownload ?? false,
+      isLiked: r.isLiked || false,
+      isSaved: r.isSaved || false,
+      createdAt: r.createdAt ? (r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt) : new Date().toISOString(),
+    };
+  });
 
   return c.json({
     success: true,
@@ -184,8 +205,11 @@ reelRouter.get("/:id", async (c) => {
 reelRouter.post("/", zValidator("json", createReelSchema), async (c) => {
   const user = getCurrentUser(c);
   const input = c.req.valid("json");
-  const videoUrl = input.videoUrl || "https://storage.example.com/reels/new_video.mp4";
-  const duration = input.duration || 30.5;
+  const videoUrl = input.videoUrl;
+  if (!videoUrl) {
+    throw new HTTPException(400, { message: "videoUrl is required" });
+  }
+  const duration = input.duration || 15.0;
   const audience = (input.audience || "PUBLIC").toUpperCase();
 
   const reelService = createReelService(user.id);
@@ -194,7 +218,7 @@ reelRouter.post("/", zValidator("json", createReelSchema), async (c) => {
     videoUrl,
     duration,
     caption: input.caption,
-    thumbnailUrl: input.thumbnailUrl || "https://storage.example.com/reels/thumb_new.jpg",
+    thumbnailUrl: input.thumbnailUrl || undefined,
     audioId: input.audioId,
     audioName: input.audioName,
     audioArtist: input.audioArtist,
@@ -209,17 +233,17 @@ reelRouter.post("/", zValidator("json", createReelSchema), async (c) => {
     video: {
       id: input.videoId || reel.id,
       url: reel.videoUrl,
-      thumbnailUrl: reel.thumbnailUrl || "https://storage.example.com/reels/thumb_new.jpg",
-      duration: Number(reel.duration) || 30.5,
+      thumbnailUrl: reel.thumbnailUrl || null,
+      duration: Number(reel.duration) || duration,
       width: 1080,
       height: 1920,
     },
-    audio: {
+    audio: input.audioId || input.audioName ? {
       id: reel.audioId || crypto.randomUUID(),
-      title: reel.audioName || "Trending Audio",
-      name: reel.audioName || "Trending Audio",
-      artist: reel.audioArtist || "Artist Name",
-    },
+      title: reel.audioName || "Original Audio",
+      name: reel.audioName || "Original Audio",
+      artist: reel.audioArtist || "Original Artist",
+    } : null,
   };
 
   return c.json(

@@ -91,8 +91,8 @@ userRouter.get("/me", async (c) => {
         displayName: user.fullName || user.username,
         email: user.email,
         phone: user.phone,
-        avatarUrl: user.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
-        bannerUrl: (user as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
+        avatarUrl: user.avatarUrl || null,
+        bannerUrl: (user as any).bannerUrl || null,
         bio: user.bio,
         website: user.website,
         isVerified: user.isVerified,
@@ -137,8 +137,8 @@ const handleUpdateProfile = async (c: any) => {
         displayName: updated.fullName || updated.username,
         email: updated.email,
         phone: updated.phone,
-        avatarUrl: updated.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
-        bannerUrl: (updated as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
+        avatarUrl: updated.avatarUrl || null,
+        bannerUrl: (updated as any).bannerUrl || null,
         bio: updated.bio,
         website: updated.website,
         isVerified: updated.isVerified,
@@ -388,15 +388,17 @@ userRouter.put("/profile", zValidator("json", profileAliasSchema), async (c) => 
 });
 
 // User Settings (stored in users.settings JSONB column)
-// GET /v1/user/settings
-userRouter.get("/settings", async (c) => {
+// GET /v1/users/settings & /v1/users/me/settings
+const handleGetSettings = async (c: any) => {
   const user = getCurrentUser(c);
-
   return c.json({ success: true, data: { settings: user.settings } });
-});
+};
 
-// PUT /v1/user/settings
-userRouter.put("/settings", zValidator("json", userSettingsSchema), async (c) => {
+userRouter.get("/settings", handleGetSettings);
+userRouter.get("/me/settings", handleGetSettings);
+
+// PUT /v1/users/settings & /v1/users/me/settings
+const handlePutSettings = async (c: any) => {
   const user = getCurrentUser(c);
   const data = c.req.valid("json");
 
@@ -414,6 +416,29 @@ userRouter.put("/settings", zValidator("json", userSettingsSchema), async (c) =>
     .returning();
 
   return c.json({ success: true, data: { settings: updated.settings } });
+};
+
+userRouter.put("/settings", zValidator("json", userSettingsSchema), handlePutSettings);
+userRouter.put("/me/settings", zValidator("json", userSettingsSchema), handlePutSettings);
+
+// GET /v1/users/me/device-tokens - List user's registered device tokens
+userRouter.get("/me/device-tokens", async (c) => {
+  const user = getCurrentUser(c);
+  const tokens = await db
+    .select({
+      id: schema.deviceTokens.id,
+      token: schema.deviceTokens.token,
+      platform: schema.deviceTokens.platform,
+      createdAt: schema.deviceTokens.createdAt,
+    })
+    .from(schema.deviceTokens)
+    .where(and(eq(schema.deviceTokens.userId, user.id), eq(schema.deviceTokens.isActive, true)))
+    .orderBy(desc(schema.deviceTokens.createdAt));
+
+  return c.json({
+    success: true,
+    data: { items: tokens },
+  });
 });
 
 // Blocked users
@@ -1380,8 +1405,8 @@ userRouter.get("/:id", async (c) => {
           username: targetUser.username,
           fullName: targetUser.fullName,
           displayName: targetUser.fullName || targetUser.username,
-          avatarUrl: targetUser.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
-          bannerUrl: (targetUser as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
+          avatarUrl: targetUser.avatarUrl || null,
+          bannerUrl: (targetUser as any).bannerUrl || null,
           bio: targetUser.bio,
           isVerified: targetUser.isVerified ?? false,
           isPrivate: targetUser.isPrivate ?? false,
@@ -1405,8 +1430,8 @@ userRouter.get("/:id", async (c) => {
         displayName: targetUser.fullName || targetUser.username,
         email: user.id === realTargetId ? targetUser.email : undefined,
         phone: user.id === realTargetId ? targetUser.phone : undefined,
-        avatarUrl: targetUser.avatarUrl || "https://storage.example.com/avatars/user123.jpg",
-        bannerUrl: (targetUser as any).bannerUrl || "https://storage.example.com/banners/user123.jpg",
+        avatarUrl: targetUser.avatarUrl || null,
+        bannerUrl: (targetUser as any).bannerUrl || null,
         bio: targetUser.bio,
         website: targetUser.website,
         isVerified: targetUser.isVerified ?? false,
