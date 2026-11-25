@@ -135,57 +135,49 @@ notificationRouter.get("/", async (c) => {
     .from(schema.notifications)
     .where(and(eq(schema.notifications.recipientId, user.id), eq(schema.notifications.isRead, false)));
 
-  const mappedNotifications = notificationsList.map((n) => ({
-    id: n.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : n.id,
+  const items = notificationsList.map((n) => ({
+    id: n.id,
     type: (n.type || "like").toLowerCase(),
-    groupKey: n.groupKey || `like:post:${n.referenceId || "abc123"}`,
-    groupCount: n.groupCount || 5,
+    groupKey: n.groupKey,
+    groupCount: n.groupCount || 1,
+    recipientId: n.recipientId,
+    actorId: n.actorId,
+    referenceType: n.referenceType,
+    referenceId: n.referenceId,
+    previewText: n.previewText,
+    thumbnailUrl: n.thumbnailUrl,
+    deepLink: n.deepLink,
     actor: {
       id: n.actor.id,
       username: n.actor.username,
+      fullName: n.actor.fullName,
       displayName: n.actor.fullName || n.actor.username,
-      avatarUrl: n.actor.avatarUrl || "https://storage.example.com/avatars/liker.jpg",
+      avatarUrl: n.actor.avatarUrl,
+      isVerified: n.actor.isVerified,
     },
     target: {
       type: (n.referenceType || "post").toLowerCase(),
-      id: n.referenceId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : (n.referenceId || n.id),
-      preview: n.previewText || "Test post caption...",
+      id: n.referenceId || n.id,
+      preview: n.previewText,
     },
     isRead: n.isRead,
+    readAt: n.readAt,
     createdAt: n.createdAt,
   }));
 
-  const fallbackNotification = {
-    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-    type: "like",
-    groupKey: "like:post:abc123",
-    groupCount: 5,
-    actor: {
-      id: user.id,
-      username: "liker",
-      displayName: "Liker Name",
-      avatarUrl: "https://storage.example.com/avatars/liker.jpg",
-    },
-    target: {
-      type: "post",
-      id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-      preview: "Test post caption...",
-    },
-    isRead: false,
-    createdAt: new Date().toISOString(),
-  };
+  const total = totalResult[0]?.count || 0;
+  const unreadCount = unreadResult[0]?.count || 0;
+  const hasMore = page * perPage < total;
 
   return c.json({
     success: true,
     data: {
-      items: notificationsList,
-      notifications: mappedNotifications.length > 0 ? mappedNotifications : [fallbackNotification],
-      unreadCount: unreadResult[0]?.count ?? 3,
-      nextCursor: "eyJpZCI6IjEyMyJ9",
+      items,
+      unreadCount,
       page,
       perPage,
-      total: totalResult[0]?.count || 0,
-      hasMore: page * perPage < (totalResult[0]?.count || 0),
+      total,
+      hasMore,
     },
   });
 });
