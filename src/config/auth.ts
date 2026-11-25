@@ -174,13 +174,41 @@ auth.$context.then((context) => {
 
   // Patch findCredentialAccount
   const originalFindCredentialAccount = internalAdapter.findCredentialAccount;
-  internalAdapter.findCredentialAccount = async (email: string) => {
-    console.log("[Better Auth] findCredentialAccount called with email:", email);
-    // Correct implementation: find credential account by email (accountId)
-    const result = await internalAdapter.findAccountByKey({
+  internalAdapter.findCredentialAccount = async (idOrEmail: string) => {
+    console.log("[Better Auth] findCredentialAccount called with:", idOrEmail);
+    // 1. Find credential account by accountId (matches when accountId is email or userId)
+    let result = await internalAdapter.findAccountByKey({
       providerId: "credential",
-      accountId: email,
+      accountId: idOrEmail,
     });
+    // 2. If not found, find by userId directly
+    if (!result) {
+      const adapter = context.adapter;
+      result = await adapter.findOne({
+        model: "account",
+        where: [
+          { field: "providerId", operator: "eq", value: "credential" },
+          { field: "userId", operator: "eq", value: idOrEmail },
+        ],
+      });
+    }
+    // 3. If still not found and idOrEmail is an email, find user by email first then credential account
+    if (!result && idOrEmail?.includes?.("@")) {
+      const adapter = context.adapter;
+      const userRecord: any = await adapter.findOne({
+        model: "user",
+        where: [{ field: "email", operator: "eq", value: idOrEmail }],
+      });
+      if (userRecord) {
+        result = await adapter.findOne({
+          model: "account",
+          where: [
+            { field: "providerId", operator: "eq", value: "credential" },
+            { field: "userId", operator: "eq", value: userRecord.id },
+          ],
+        });
+      }
+    }
     console.log("[Better Auth] findCredentialAccount result:", result ? "found" : "not found");
     return result;
   };

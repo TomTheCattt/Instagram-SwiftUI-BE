@@ -136,6 +136,15 @@ export async function seed() {
 
     if (existing) {
       createdUsers.push(existing);
+      await db
+        .insert(schema.accounts)
+        .values({
+          userId: existing.id,
+          accountId: existing.email,
+          providerId: "credential",
+          password: existing.passwordHash || passwordHash,
+        })
+        .onConflictDoNothing();
       continue;
     }
 
@@ -156,9 +165,29 @@ export async function seed() {
       .returning();
 
     createdUsers.push(inserted);
+
+    // Create Better Auth account for user
+    await db
+      .insert(schema.accounts)
+      .values({
+        userId: inserted.id,
+        accountId: inserted.email,
+        providerId: "credential",
+        password: passwordHash,
+      })
+      .onConflictDoNothing();
   }
 
-  console.log(`✅ ${createdUsers.length} users ready.`);
+  // Ensure Better Auth credential accounts for all users in database
+  await db.execute(sql`
+    INSERT INTO accounts (id, user_id, account_id, provider_id, password, created_at, updated_at)
+    SELECT gen_random_uuid(), id, email, 'credential', password_hash, NOW(), NOW()
+    FROM users
+    WHERE password_hash IS NOT NULL
+    ON CONFLICT (provider_id, account_id) DO NOTHING;
+  `);
+
+  console.log(`✅ ${createdUsers.length} users ready with Better Auth accounts.`);
 
   // 2. Create Follows
   console.log("🤝 Creating follows...");
