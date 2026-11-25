@@ -130,6 +130,15 @@ export async function seed() {
 
   for (let i = 0; i < userSeeds.length; i++) {
     const u = userSeeds[i];
+    const existing = await db.query.users.findFirst({
+      where: sql`${schema.users.username} = ${u.username}`,
+    });
+
+    if (existing) {
+      createdUsers.push(existing);
+      continue;
+    }
+
     const [inserted] = await db
       .insert(schema.users)
       .values({
@@ -143,10 +152,6 @@ export async function seed() {
         avatarThumbUrl: avatarUrl(i, 150),
         image: avatarUrl(i),
         isVerified: Math.random() < 0.2,
-      })
-      .onConflictDoUpdate({
-        target: schema.users.username,
-        set: { fullName: u.fullName, name: u.fullName, updatedAt: new Date() },
       })
       .returning();
 
