@@ -285,27 +285,36 @@ reelRouter.delete("/:id", async (c) => {
 // ENGAGEMENT ENDPOINTS (BE-095)
 // ============================================================
 
-// POST /v1/reels/:id/like - Like reel
+// POST /v1/reels/:id/like - Like reel (toggles if already liked)
 reelRouter.post("/:id/like", async (c) => {
   const user = getCurrentUser(c);
   const reelId = c.req.param("id");
 
   const reelService = createReelService(user.id);
-  await reelService.likeReel(reelId, user.id);
+  const result = await reelService.likeReel(reelId, user.id);
 
-  return c.body(null, 204);
+  return c.json({
+    success: true,
+    data: result,
+  }, 200);
 });
 
-// DELETE /v1/reels/:id/like - Unlike reel
-reelRouter.delete("/:id/like", async (c) => {
+// DELETE /v1/reels/:id/like & POST /v1/reels/:id/unlike - Unlike reel
+const handleUnlikeReel = async (c: any) => {
   const user = getCurrentUser(c);
   const reelId = c.req.param("id");
 
   const reelService = createReelService(user.id);
-  await reelService.unlikeReel(reelId, user.id);
+  const result = await reelService.unlikeReel(reelId, user.id);
 
-  return c.body(null, 204);
-});
+  return c.json({
+    success: true,
+    data: result,
+  }, 200);
+};
+
+reelRouter.delete("/:id/like", handleUnlikeReel);
+reelRouter.post("/:id/unlike", handleUnlikeReel);
 
 // POST /v1/reels/:id/save - Save reel
 reelRouter.post("/:id/save", async (c) => {

@@ -525,7 +525,13 @@ export async function likeComment(commentId: string, userId: string): Promise<vo
     ),
   });
   if (existing) {
-    throw new HTTPException(409, { message: "Already liked this comment" });
+    // Already liked -> Toggle to unlike
+    await db.delete(schema.likes).where(eq(schema.likes.id, existing.id));
+    await db
+      .update(schema.comments)
+      .set({ likesCount: sql`GREATEST(0, ${schema.comments.likesCount} - 1)` })
+      .where(eq(schema.comments.id, commentId));
+    return;
   }
 
   // Insert like
@@ -557,15 +563,13 @@ export async function unlikeComment(commentId: string, userId: string): Promise<
     )
     .returning({ id: schema.likes.id });
 
-  if (result.length === 0) {
-    throw new HTTPException(404, { message: "Not liked this comment" });
+  if (result.length > 0) {
+    // Decrement likes count
+    await db
+      .update(schema.comments)
+      .set({ likesCount: sql`GREATEST(0, ${schema.comments.likesCount} - 1)` })
+      .where(eq(schema.comments.id, commentId));
   }
-
-  // Decrement likes count
-  await db
-    .update(schema.comments)
-    .set({ likesCount: sql`${schema.comments.likesCount} - 1` })
-    .where(eq(schema.comments.id, commentId));
 }
 
 /**

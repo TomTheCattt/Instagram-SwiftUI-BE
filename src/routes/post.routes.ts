@@ -753,8 +753,26 @@ postRouter.post("/:id/like", async (c) => {
   const existing = await db.query.likes.findFirst({
     where: and(eq(schema.likes.userId, user.id), eq(schema.likes.likeableType, "POST"), eq(schema.likes.likeableId, postId))
   });
-  if (existing) throw new HTTPException(409, { message: "Already liked this post" });
 
+  if (existing) {
+    // Already liked -> Toggle to UNLIKE
+    await db.delete(schema.likes).where(eq(schema.likes.id, existing.id));
+    await db.update(schema.posts)
+      .set({ likesCount: sql`GREATEST(0, ${schema.posts.likesCount} - 1)` })
+      .where(eq(schema.posts.id, postId));
+
+    const updatedPost = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
+
+    return c.json({
+      success: true,
+      data: {
+        isLiked: false,
+        likesCount: updatedPost?.likesCount ?? Math.max(0, post.likesCount - 1),
+      },
+    }, 200);
+  }
+
+  // Not liked yet -> Insert like
   await db.insert(schema.likes).values({ userId: user.id, likeableType: "POST", likeableId: postId });
   await db.update(schema.posts)
     .set({ likesCount: sql`${schema.posts.likesCount} + 1` })
@@ -785,19 +803,22 @@ postRouter.post("/:id/like", async (c) => {
   }, 200);
 });
 
-postRouter.delete("/:id/like", async (c) => {
+const handleUnlikePost = async (c: any) => {
   const user = getCurrentUser(c);
   const postId = c.req.param("id");
+
+  const post = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
+  if (!post) throw new HTTPException(404, { message: "Post not found" });
 
   const result = await db.delete(schema.likes)
     .where(and(eq(schema.likes.userId, user.id), eq(schema.likes.likeableType, "POST"), eq(schema.likes.likeableId, postId)))
     .returning({ id: schema.likes.id });
 
-  if (result.length === 0) throw new HTTPException(404, { message: "Not liked this post" });
-
-  await db.update(schema.posts)
-    .set({ likesCount: sql`GREATEST(0, ${schema.posts.likesCount} - 1)` })
-    .where(eq(schema.posts.id, postId));
+  if (result.length > 0) {
+    await db.update(schema.posts)
+      .set({ likesCount: sql`GREATEST(0, ${schema.posts.likesCount} - 1)` })
+      .where(eq(schema.posts.id, postId));
+  }
 
   const updatedPost = await db.query.posts.findFirst({ where: eq(schema.posts.id, postId) });
 
@@ -805,10 +826,13 @@ postRouter.delete("/:id/like", async (c) => {
     success: true,
     data: {
       isLiked: false,
-      likesCount: updatedPost?.likesCount ?? 0,
+      likesCount: updatedPost?.likesCount ?? Math.max(0, post.likesCount - (result.length > 0 ? 1 : 0)),
     },
   }, 200);
-});
+};
+
+postRouter.delete("/:id/like", handleUnlikePost);
+postRouter.post("/:id/unlike", handleUnlikePost);
 
 postRouter.get("/:id/likes", async (c) => {
   const user = getCurrentUser(c);
@@ -1054,13 +1078,16 @@ postRouter.post("/comments/:commentId/like", async (c) => {
   return c.body(null, 204);
 });
 
-postRouter.delete("/comments/:commentId/like", async (c) => {
+const handleUnlikeComment = async (c: any) => {
   const user = getCurrentUser(c);
   const commentId = c.req.param("commentId");
 
   await unlikeComment(commentId, user.id);
   return c.body(null, 204);
-});
+};
+
+postRouter.delete("/comments/:commentId/like", handleUnlikeComment);
+postRouter.post("/comments/:commentId/unlike", handleUnlikeComment);
 
 postRouter.post("/comments/:commentId/report", zValidator("json", reportSchema), async (c) => {
   const user = getCurrentUser(c);

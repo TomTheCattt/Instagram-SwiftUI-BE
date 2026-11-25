@@ -638,7 +638,7 @@ export class ReelService {
   /**
    * Like a reel
    */
-  async likeReel(reelId: string, userId: string): Promise<void> {
+  async likeReel(reelId: string, userId: string): Promise<{ isLiked: boolean; likesCount: number }> {
     const reel = await db.query.reels.findFirst({
       where: eq(schema.reels.id, reelId),
       with: { author: true },
@@ -664,7 +664,14 @@ export class ReelService {
     });
 
     if (existing) {
-      throw new HTTPException(409, { message: "Already liked this reel" });
+      // Toggle to unlike
+      await db.delete(schema.likes).where(eq(schema.likes.id, existing.id));
+      await db.update(schema.reels)
+        .set({ likesCount: sql`GREATEST(0, ${schema.reels.likesCount} - 1)` })
+        .where(eq(schema.reels.id, reelId));
+
+      const updated = await db.query.reels.findFirst({ where: eq(schema.reels.id, reelId) });
+      return { isLiked: false, likesCount: updated?.likesCount ?? Math.max(0, (reel.likesCount || 0) - 1) };
     }
 
     // Insert like
@@ -693,12 +700,20 @@ export class ReelService {
         groupKey: `like:reel:${reelId}`,
       });
     }
+
+    const updated = await db.query.reels.findFirst({ where: eq(schema.reels.id, reelId) });
+    return { isLiked: true, likesCount: updated?.likesCount ?? (reel.likesCount || 0) + 1 };
   }
 
   /**
    * Unlike a reel
    */
-  async unlikeReel(reelId: string, userId: string): Promise<void> {
+  async unlikeReel(reelId: string, userId: string): Promise<{ isLiked: boolean; likesCount: number }> {
+    const reel = await db.query.reels.findFirst({ where: eq(schema.reels.id, reelId) });
+    if (!reel || reel.deletedAt) {
+      throw new HTTPException(404, { message: "Reel not found" });
+    }
+
     const result = await db.delete(schema.likes)
       .where(and(
         eq(schema.likes.userId, userId),
@@ -707,14 +722,14 @@ export class ReelService {
       ))
       .returning({ id: schema.likes.id });
 
-    if (result.length === 0) {
-      throw new HTTPException(404, { message: "Not liked this reel" });
+    if (result.length > 0) {
+      await db.update(schema.reels)
+        .set({ likesCount: sql`GREATEST(0, ${schema.reels.likesCount} - 1)` })
+        .where(eq(schema.reels.id, reelId));
     }
 
-    // Decrement likes count
-    await db.update(schema.reels)
-      .set({ likesCount: sql`${schema.reels.likesCount} - 1` })
-      .where(eq(schema.reels.id, reelId));
+    const updated = await db.query.reels.findFirst({ where: eq(schema.reels.id, reelId) });
+    return { isLiked: false, likesCount: updated?.likesCount ?? Math.max(0, (reel.likesCount || 0) - (result.length > 0 ? 1 : 0)) };
   }
 
   /**
