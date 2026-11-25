@@ -333,6 +333,16 @@ export async function seed() {
       .where(sql`${schema.posts.id} = ${post.id}`);
   }
 
+  // 7. Synchronize user counts (postsCount, followersCount, followingCount)
+  console.log("🔢 Synchronizing user profile counts...");
+  await db.execute(sql`
+    UPDATE users u
+    SET 
+      posts_count = (SELECT count(*) FROM posts p WHERE p.author_id = u.id),
+      followers_count = (SELECT count(*) FROM follows f WHERE f.following_id = u.id AND f.status = 'ACCEPTED'),
+      following_count = (SELECT count(*) FROM follows f WHERE f.follower_id = u.id AND f.status = 'ACCEPTED');
+  `);
+
   console.log("🎉 Database seeding completed successfully!");
 }
 

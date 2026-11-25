@@ -30,6 +30,45 @@ const tokenSchema = z.object({
   token: z.string().min(1).max(512),
 });
 
+/**
+ * Get accurate counts for a user (posts, followers, following)
+ * and self-heal the users table if denormalized counters drifted
+ */
+async function getUserCounts(
+  userId: string,
+  cached?: { postsCount?: number | null; followersCount?: number | null; followingCount?: number | null }
+) {
+  const [postsRes, followersRes, followingRes] = await Promise.all([
+    db.select({ count: count() }).from(schema.posts).where(eq(schema.posts.authorId, userId)),
+    db
+      .select({ count: count() })
+      .from(schema.follows)
+      .where(and(eq(schema.follows.followingId, userId), eq(schema.follows.status, "ACCEPTED"))),
+    db
+      .select({ count: count() })
+      .from(schema.follows)
+      .where(and(eq(schema.follows.followerId, userId), eq(schema.follows.status, "ACCEPTED"))),
+  ]);
+
+  const postsCount = Number(postsRes[0]?.count ?? 0);
+  const followersCount = Number(followersRes[0]?.count ?? 0);
+  const followingCount = Number(followingRes[0]?.count ?? 0);
+
+  if (
+    cached &&
+    (cached.postsCount !== postsCount ||
+      cached.followersCount !== followersCount ||
+      cached.followingCount !== followingCount)
+  ) {
+    db.update(schema.users)
+      .set({ postsCount, followersCount, followingCount })
+      .where(eq(schema.users.id, userId))
+      .catch(() => {});
+  }
+
+  return { postsCount, followersCount, followingCount };
+}
+
 const searchSchema = z.object({
   q: z.string().trim().min(1).max(100),
   page: z.string().optional(),
@@ -81,6 +120,7 @@ userRouter.use("*", authMiddleware);
 // GET /v1/user/me - Canonical profile (alias for /v1/user/profile)
 userRouter.get("/me", async (c) => {
   const user = getCurrentUser(c);
+  const counts = await getUserCounts(user.id, user);
   return c.json({
     success: true,
     data: {
@@ -97,9 +137,9 @@ userRouter.get("/me", async (c) => {
         website: user.website,
         isVerified: user.isVerified,
         isPrivate: user.isPrivate,
-        postsCount: user.postsCount,
-        followersCount: user.followersCount,
-        followingCount: user.followingCount,
+        postsCount: counts.postsCount,
+        followersCount: counts.followersCount,
+        followingCount: counts.followingCount,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt || user.createdAt,
         isFollowing: false,
@@ -127,6 +167,8 @@ const handleUpdateProfile = async (c: any) => {
     .where(eq(schema.users.id, user.id))
     .returning();
 
+  const counts = await getUserCounts(updated.id, updated);
+
   return c.json({
     success: true,
     data: {
@@ -143,9 +185,9 @@ const handleUpdateProfile = async (c: any) => {
         website: updated.website,
         isVerified: updated.isVerified,
         isPrivate: updated.isPrivate,
-        postsCount: updated.postsCount,
-        followersCount: updated.followersCount,
-        followingCount: updated.followingCount,
+        postsCount: counts.postsCount,
+        followersCount: counts.followersCount,
+        followingCount: counts.followingCount,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,
       },
@@ -323,6 +365,7 @@ userRouter.get("/suggested", async (c) => {
 // GET /v1/user/profile
 userRouter.get("/profile", async (c) => {
   const user = getCurrentUser(c);
+  const counts = await getUserCounts(user.id, user);
   return c.json({
     success: true,
     data: {
@@ -337,9 +380,9 @@ userRouter.get("/profile", async (c) => {
         website: user.website,
         isVerified: user.isVerified,
         isPrivate: user.isPrivate,
-        postsCount: user.postsCount,
-        followersCount: user.followersCount,
-        followingCount: user.followingCount,
+        postsCount: counts.postsCount,
+        followersCount: counts.followersCount,
+        followingCount: counts.followingCount,
         createdAt: user.createdAt,
       },
     },
@@ -364,6 +407,8 @@ userRouter.put("/profile", zValidator("json", profileAliasSchema), async (c) => 
     .where(eq(schema.users.id, user.id))
     .returning();
 
+  const counts = await getUserCounts(updated.id, updated);
+
   return c.json({
     success: true,
     data: {
@@ -378,9 +423,9 @@ userRouter.put("/profile", zValidator("json", profileAliasSchema), async (c) => 
         website: updated.website,
         isVerified: updated.isVerified,
         isPrivate: updated.isPrivate,
-        postsCount: updated.postsCount,
-        followersCount: updated.followersCount,
-        followingCount: updated.followingCount,
+        postsCount: counts.postsCount,
+        followersCount: counts.followersCount,
+        followingCount: counts.followingCount,
         createdAt: updated.createdAt,
       },
     },
@@ -618,6 +663,8 @@ userRouter.patch("/me/username", zValidator("json", usernameChangeSchema), async
     newValues: { username: newUsername },
   });
 
+  const counts = await getUserCounts(updated.id, updated);
+
   return c.json({
     success: true,
     data: {
@@ -632,9 +679,9 @@ userRouter.patch("/me/username", zValidator("json", usernameChangeSchema), async
         website: updated.website,
         isVerified: updated.isVerified,
         isPrivate: updated.isPrivate,
-        postsCount: updated.postsCount,
-        followersCount: updated.followersCount,
-        followingCount: updated.followingCount,
+        postsCount: counts.postsCount,
+        followersCount: counts.followersCount,
+        followingCount: counts.followingCount,
         createdAt: updated.createdAt,
       },
     },
@@ -1395,6 +1442,8 @@ userRouter.get("/:id", async (c) => {
     where: and(eq(schema.follows.followerId, realTargetId), eq(schema.follows.followingId, user.id)),
   }));
 
+  const counts = await getUserCounts(realTargetId, targetUser);
+
   // If private and not following, return limited info
   if (targetUser.isPrivate && !isFollowing && user.id !== realTargetId) {
     return c.json({
@@ -1410,9 +1459,9 @@ userRouter.get("/:id", async (c) => {
           bio: targetUser.bio,
           isVerified: targetUser.isVerified ?? false,
           isPrivate: targetUser.isPrivate ?? false,
-          postsCount: targetUser.postsCount ?? 0,
-          followersCount: targetUser.followersCount ?? 0,
-          followingCount: targetUser.followingCount ?? 0,
+          postsCount: counts.postsCount,
+          followersCount: counts.followersCount,
+          followingCount: counts.followingCount,
           isFollowing,
           isFollowedBy,
         },
@@ -1436,9 +1485,9 @@ userRouter.get("/:id", async (c) => {
         website: targetUser.website,
         isVerified: targetUser.isVerified ?? false,
         isPrivate: targetUser.isPrivate ?? false,
-        postsCount: targetUser.postsCount ?? 0,
-        followersCount: targetUser.followersCount ?? 0,
-        followingCount: targetUser.followingCount ?? 0,
+        postsCount: counts.postsCount,
+        followersCount: counts.followersCount,
+        followingCount: counts.followingCount,
         createdAt: targetUser.createdAt,
         isFollowing,
         isFollowedBy,
