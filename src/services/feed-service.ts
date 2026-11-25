@@ -766,8 +766,9 @@ export class FeedService {
    * Encode FeedCursor to base64 string
    */
   private encodeCursor(item: FeedItem): FeedCursor {
+    const createdAt = item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
     const cursor: FeedCursor = {
-      timestamp: item.createdAt.toISOString(),
+      timestamp: createdAt.toISOString(),
       engagementScore: item.engagementScore,
       postId: item.postId,
     };

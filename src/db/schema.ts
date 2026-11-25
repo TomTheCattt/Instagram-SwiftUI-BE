@@ -946,7 +946,7 @@ export const rateLimitBuckets = pgTable(
 export const analyticsDaily = pgTable(
   "analytics_daily",
   {
-    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()).default(sql`gen_random_uuid()`),
     date: timestamp("date", { withTimezone: true }).notNull(),
     metric: varchar("metric", { length: 100 }).notNull(),
     value: decimal("value", { precision: 20, scale: 4 }).notNull(),
@@ -964,7 +964,7 @@ export const analyticsDaily = pgTable(
 export const analyticsHourly = pgTable(
   "analytics_hourly",
   {
-    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()).default(sql`gen_random_uuid()`),
     hour: timestamp("hour", { withTimezone: true }).notNull(),
     metric: varchar("metric", { length: 100 }).notNull(),
     value: decimal("value", { precision: 20, scale: 4 }).notNull(),

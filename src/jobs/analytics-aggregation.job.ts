@@ -617,7 +617,7 @@ export class AnalyticsAggregationJob {
         SELECT
           'processing_uploads' as metric,
           COUNT(*) as value
-        FROM tus_uploads WHERE status IN ('created', 'uploading', 'processing')
+        FROM tus_uploads WHERE status IN ('created', 'uploading')
       `);
 
       for (const row of queueSizes.rows) {
