@@ -11,27 +11,17 @@ import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
 import { randomUUID } from 'crypto';
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
+import { s3Client, STORAGE_ENDPOINT, CDN_BASE_URL } from '../config/storage';
 
 // Set FFmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// Neon Object Storage configuration
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: env.NEON_STORAGE_ENDPOINT || 'https://storage.neon.tech',
-  credentials: {
-    accessKeyId: env.NEON_STORAGE_ACCESS_KEY_ID || '',
-    secretAccessKey: env.NEON_STORAGE_SECRET_ACCESS_KEY || '',
-  },
-});
-
 const UPLOAD_BUCKET = 'uploads';
 const PROCESSED_BUCKET = 'media';
 const THUMBNAIL_BUCKET = 'thumbnails';
-const CDN_BASE_URL = env.CDN_BASE_URL || env.NEON_STORAGE_ENDPOINT;
 
 // ============================================================
 // TYPES
@@ -124,7 +114,7 @@ function getStoragePath(userId: string, type: 'video' | 'image' | 'thumbnail', e
 }
 
 function getCDNUrl(bucket: string, path: string): string {
-  const baseUrl = CDN_BASE_URL?.replace(/\/$/, '') || env.NEON_STORAGE_ENDPOINT?.replace(/\/$/, '');
+  const baseUrl = CDN_BASE_URL?.replace(/\/$/, '') || STORAGE_ENDPOINT?.replace(/\/$/, '');
   return `${baseUrl}/${bucket}/${path}`;
 }
 
@@ -708,18 +698,18 @@ export async function processImageUpload(
 
 /**
  * Rewrite media URL to use CDN
- * Implements BE-109: CDN integration (Cloudflare/Neon CDN)
+ * Implements BE-109: CDN integration (Cloudflare / CDN)
  */
 export function rewriteMediaUrlToCdn(originalUrl: string): string {
-  if (!CDN_BASE_URL || !env.NEON_STORAGE_ENDPOINT) {
+  if (!CDN_BASE_URL || !STORAGE_ENDPOINT) {
     return originalUrl;
   }
 
-  const neonEndpoint = env.NEON_STORAGE_ENDPOINT.replace(/\/$/, '');
+  const endpoint = STORAGE_ENDPOINT.replace(/\/$/, '');
   const cdnBase = CDN_BASE_URL.replace(/\/$/, '');
 
-  if (originalUrl.startsWith(neonEndpoint)) {
-    return originalUrl.replace(neonEndpoint, cdnBase);
+  if (originalUrl.startsWith(endpoint)) {
+    return originalUrl.replace(endpoint, cdnBase);
   }
 
   return originalUrl;

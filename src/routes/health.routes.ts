@@ -127,50 +127,13 @@ async function checkRedis(): Promise<HealthCheck> {
 }
 
 /**
- * Check Neon services (Auth, Functions, Storage, Realtime)
- */
-async function checkNeonServices(): Promise<HealthCheck> {
-  const start = Date.now();
-  try {
-    // Check if we can reach Neon API (if configured)
-    const neonApiUrl = process.env.NEON_API_URL || "https://console.neon.tech";
-
-    // For now, just verify we have required env vars
-    const requiredVars = [
-      "DATABASE_URL",
-      "NEON_AUTH_CLIENT_ID",
-      "NEON_AUTH_CLIENT_SECRET",
-    ];
-
-    const missing = requiredVars.filter(v => !process.env[v]);
-
-    return {
-      name: "neon_services",
-      status: missing.length > 0 ? "degraded" : "healthy",
-      latencyMs: Date.now() - start,
-      details: {
-        missingEnvVars: missing,
-        neonApiUrl,
-      },
-    };
-  } catch (error) {
-    return {
-      name: "neon_services",
-      status: "unhealthy",
-      latencyMs: Date.now() - start,
-      error: (error as Error).message,
-    };
-  }
-}
-
-/**
  * Check external dependencies (S3, Email, SMS, etc.)
  */
 async function checkExternalServices(): Promise<HealthCheck> {
   const start = Date.now();
   try {
     const services = {
-      s3: !!process.env.NEON_STORAGE_ENDPOINT,
+      s3: !!(process.env.S3_ENDPOINT || process.env.NEON_STORAGE_ENDPOINT || process.env.AWS_ENDPOINT_URL_S3),
       email: !!process.env.SMTP_HOST,
       sms: !!process.env.TWILIO_ACCOUNT_SID,
       apns: !!process.env.APNS_KEY_ID,
@@ -232,7 +195,6 @@ async function runHealthChecks(): Promise<HealthCheck[]> {
   const checks = await Promise.all([
     checkDatabase(),
     checkRedis(),
-    checkNeonServices(),
     checkExternalServices(),
     checkWebSocket(),
   ]);
@@ -274,7 +236,7 @@ healthRouter.get("/health", (c) => {
  * GET /ready - Readiness probe
  * Checks all dependencies before returning ready
  * Returns 503 if any critical dependency is unavailable
- * Used by orchestrators (K8s, Neon Functions) to route traffic
+ * Used by orchestrators (K8s, Docker, Cloud Run) to route traffic
  */
 healthRouter.get("/ready", async (c) => {
   const requestId = c.get("requestId");
@@ -439,7 +401,7 @@ healthRouter.get("/health/startup", async (c) => {
 
 /**
  * GET /health/dependencies - Check specific dependency
- * Query param: ?service=database|redis|neon|websocket|external
+ * Query param: ?service=database|redis|websocket|external
  */
 healthRouter.get("/health/dependencies", async (c) => {
   const service = c.req.query("service");
@@ -463,9 +425,6 @@ healthRouter.get("/health/dependencies", async (c) => {
     case "redis":
       check = await checkRedis();
       break;
-    case "neon":
-      check = await checkNeonServices();
-      break;
     case "websocket":
       check = await checkWebSocket();
       break;
@@ -476,7 +435,7 @@ healthRouter.get("/health/dependencies", async (c) => {
       return c.json({
         success: false,
         error: "INVALID_SERVICE",
-        message: `Unknown service: ${service}. Valid: database, redis, neon, websocket, external`,
+        message: `Unknown service: ${service}. Valid: database, redis, websocket, external`,
         requestId,
       }, 400);
   }

@@ -4,9 +4,9 @@
  * Implements BE-105: Video transcoding pipeline (FFmpeg via job queue)
  */
 
-import { neon } from '@neondatabase/serverless';
+import { sql as sqlQuery } from '../db/sql';
 import { env } from '../config/env';
-import { sql } from 'drizzle-orm';
+import { STORAGE_ENDPOINT, UPLOAD_BUCKET } from '../config/storage';
 import {
   transcodeVideo,
   generateVideoThumbnail,
@@ -34,17 +34,14 @@ interface TranscodingJob {
   completedAt?: Date;
 }
 
-const UPLOAD_BUCKET = 'uploads';
-const STORAGE_BASE_URL = `${env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}`;
+const STORAGE_BASE_URL = `${STORAGE_ENDPOINT}/${UPLOAD_BUCKET}`;
 
 /**
  * Get pending transcoding jobs from database
  */
 async function getPendingTranscodingJobs(limit: number = 10): Promise<TranscodingJob[]> {
-  const sqlClient = neon(env.DATABASE_URL);
-
   // We need to construct the URL check differently - check if media_items has a record for this storage path
-  const jobs = await sqlClient`
+  const jobs = await sqlQuery`
     SELECT
       pu.id as pending_upload_id,
       pu.user_id,
@@ -88,13 +85,11 @@ function inferMediaType(storagePath: string): 'reel' | 'story' | 'post' | 'messa
  * Process a single transcoding job
  */
 async function processTranscodingJob(job: TranscodingJob): Promise<void> {
-  const sqlClient = neon(env.DATABASE_URL);
-
   console.log(`[MediaTranscoding] Processing job ${job.id} for ${job.storagePath}`);
 
   try {
     // Update status to processing
-    await sqlClient`
+    await sqlQuery`
       UPDATE pending_uploads
       SET updated_at = NOW()
       WHERE id = ${job.pendingUploadId}
@@ -115,7 +110,7 @@ async function processTranscodingJob(job: TranscodingJob): Promise<void> {
     const mediaData = result.mediaData!;
 
     // Create media_items record
-    await sqlClient`
+    await sqlQuery`
       INSERT INTO media_items (
         mediaable_type,
         mediaable_id,
@@ -144,7 +139,7 @@ async function processTranscodingJob(job: TranscodingJob): Promise<void> {
     `;
 
     // Mark pending upload as processed
-    await sqlClient`
+    await sqlQuery`
       UPDATE pending_uploads
       SET updated_at = NOW()
       WHERE id = ${job.pendingUploadId}
@@ -157,7 +152,7 @@ async function processTranscodingJob(job: TranscodingJob): Promise<void> {
     console.error(`[MediaTranscoding] Job ${job.id} failed:`, errorMessage);
 
     // Update pending_uploads with error
-    await sqlClient`
+    await sqlQuery`
       UPDATE pending_uploads
       SET updated_at = NOW()
       WHERE id = ${job.pendingUploadId}
@@ -268,9 +263,7 @@ export async function getTranscodingJobStatus(): Promise<{
   isRunning: boolean;
   pendingJobsCount: number;
 }> {
-  const sqlClient = neon(env.DATABASE_URL);
-
-  const result = await sqlClient`
+  const result = await sqlQuery`
     SELECT COUNT(*) as count
     FROM pending_uploads pu
     WHERE pu.confirmed = true

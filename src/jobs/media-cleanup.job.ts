@@ -4,23 +4,14 @@
  * Implements BE-110: Media cleanup (orphaned files, expired pending uploads)
  */
 
-import { neon } from '@neondatabase/serverless';
+import { sql } from '../db/sql';
 import { env } from '../config/env';
-import { S3Client, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { s3Client, STORAGE_ENDPOINT, getStorageUrl } from '../config/storage';
 import { rewriteMediaUrlToCdn } from '../services/media-processor';
 
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 let isCleaning = false;
-
-// Neon Object Storage configuration
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: env.NEON_STORAGE_ENDPOINT || 'https://storage.neon.tech',
-  credentials: {
-    accessKeyId: env.NEON_STORAGE_ACCESS_KEY_ID || '',
-    secretAccessKey: env.NEON_STORAGE_SECRET_ACCESS_KEY || '',
-  },
-});
 
 const UPLOAD_BUCKET = 'uploads';
 const PROCESSED_BUCKET = 'media';
@@ -35,7 +26,6 @@ const FAILED_PROCESSING_RETENTION_DAYS = 30; // Keep failed processing records f
  * Clean up expired pending uploads (unconfirmed uploads older than 24 hours)
  */
 async function cleanupExpiredPendingUploads(): Promise<{ deletedCount: number; freedBytes: number }> {
-  const sql = neon(env.DATABASE_URL);
   let deletedCount = 0;
   let freedBytes = 0;
 
@@ -120,8 +110,6 @@ async function cleanupOrphanedFiles(): Promise<{ deletedCount: number; freedByte
 
       // For each object, check if it's referenced in database
       // This is a simplified check - in production, you'd want to batch this
-      const sql = neon(env.DATABASE_URL);
-
       for (const obj of objects) {
         if (!obj.Key) continue;
 
@@ -135,7 +123,7 @@ async function cleanupOrphanedFiles(): Promise<{ deletedCount: number; freedByte
 
         // Check if referenced in media_items or pending_uploads
         const storagePath = obj.Key;
-        const fullUrl = `${env.NEON_STORAGE_ENDPOINT}/${bucket}/${storagePath}`;
+        const fullUrl = getStorageUrl(bucket, storagePath);
 
         const referenced = await sql`
           SELECT 1 FROM media_items WHERE url = ${fullUrl}
@@ -185,7 +173,6 @@ async function cleanupOrphanedFiles(): Promise<{ deletedCount: number; freedByte
  * Clean up failed processing records (old failed media_items)
  */
 async function cleanupFailedProcessing(): Promise<{ deletedCount: number }> {
-  const sql = neon(env.DATABASE_URL);
   let deletedCount = 0;
 
   try {
@@ -212,7 +199,6 @@ async function cleanupFailedProcessing(): Promise<{ deletedCount: number }> {
  * Note: This is also handled by story-expiration-job.ts
  */
 async function cleanupExpiredStoryMedia(): Promise<{ deletedCount: number }> {
-  const sql = neon(env.DATABASE_URL);
   let deletedCount = 0;
 
   try {
@@ -240,7 +226,7 @@ async function cleanupExpiredStoryMedia(): Promise<{ deletedCount: number }> {
       for (const url of urls) {
         try {
           // Extract bucket and key from URL
-          const urlParts = url.replace(`${env.NEON_STORAGE_ENDPOINT}/`, '').split('/');
+          const urlParts = url.replace(`${STORAGE_ENDPOINT}/`, '').split('/');
           const bucket = urlParts[0];
           const key = urlParts.slice(1).join('/');
 

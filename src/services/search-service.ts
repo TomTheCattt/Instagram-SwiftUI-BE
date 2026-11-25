@@ -103,7 +103,7 @@ const BM25_SEARCH_LIMIT = 40;
 const GRAPH_SEARCH_LIMIT = 40;
 const EMBEDDING_MODEL = "qwen3-embedding-0-6b";
 const EMBEDDING_DIMENSIONS = 1024;
-const QUERY_PROMPT = "Instruct: Given a question about Neon, retrieve documentation passages that answer the question\nQuery: ";
+const QUERY_PROMPT = "Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ";
 
 // ============================================================================
 // AI Gateway Embedding Client
@@ -115,12 +115,12 @@ class EmbeddingClient {
   private isConfigured: boolean;
 
   constructor() {
-    this.baseUrl = process.env.NEON_AI_GATEWAY_BASE_URL;
-    this.apiKey = process.env.NEON_AI_GATEWAY_TOKEN;
+    this.baseUrl = process.env.AI_GATEWAY_BASE_URL || process.env.NEON_AI_GATEWAY_BASE_URL;
+    this.apiKey = process.env.AI_GATEWAY_TOKEN || process.env.NEON_AI_GATEWAY_TOKEN;
     this.isConfigured = Boolean(this.baseUrl && this.apiKey);
 
     if (!this.isConfigured) {
-      console.warn("[SearchService] NEON_AI_GATEWAY not configured, using fallback search (no vector embeddings)");
+      console.warn("[SearchService] AI_GATEWAY not configured, using fallback search (no vector embeddings)");
     }
   }
 

@@ -23,6 +23,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "neon.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/websocket/server.ts"]
 }

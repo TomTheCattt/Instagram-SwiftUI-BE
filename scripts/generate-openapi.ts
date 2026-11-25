@@ -23,7 +23,7 @@ const openApiSpec = {
   info: {
     title: "Instagram Clone API",
     version: "1.0.0",
-    description: "Backend API for Instagram Clone iOS app - Neon Functions + PostgreSQL + Better Auth",
+    description: "Backend API for Instagram Clone iOS app - Node.js + PostgreSQL + Better Auth",
     contact: {
       name: "API Support",
       email: "api@instagram-clone.app",
@@ -39,7 +39,7 @@ const openApiSpec = {
       description: "Production server",
     },
     {
-      url: "https://staging-api.compute.us-east-2.aws.neon.tech",
+      url: "https://staging-api.instagram-clone.app",
       description: "Staging server",
     },
     {

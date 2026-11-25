@@ -4,8 +4,7 @@
  * Runs every hour to clean up expired stories.
  */
 
-import { neon } from '@neondatabase/serverless';
-import { env } from '../config/env';
+import { sql } from '../db/sql';
 
 let expirationInterval: ReturnType<typeof setInterval> | null = null;
 let isCleaning = false;
@@ -23,8 +22,6 @@ async function cleanupExpiredStories(): Promise<void> {
   const startTime = Date.now();
 
   try {
-    const sql = neon(env.DATABASE_URL);
-
     // First, get expired stories with their media URLs for storage cleanup
     const expiredStories = await sql`
       SELECT s.id, s.author_id, array_agg(si.media_url) as media_urls
@@ -39,7 +36,7 @@ async function cleanupExpiredStories(): Promise<void> {
     if (expiredStories.length > 0) {
       console.log(`[StoryExpiration] Found ${expiredStories.length} expired stories to clean up`);
 
-      // Delete from storage (S3/Neon Storage)
+      // Delete from storage (S3)
       // Note: In production, you'd delete the actual media files
       // For now, we'll just log what would be deleted
       for (const story of expiredStories) {
@@ -109,8 +106,6 @@ export async function triggerStoryExpirationCleanup(): Promise<{ success: boolea
   let deletedCount = 0;
 
   try {
-    const sql = neon(env.DATABASE_URL);
-
     const expiredStories = await sql`
       SELECT s.id, s.author_id, array_agg(si.media_url) as media_urls
       FROM stories s

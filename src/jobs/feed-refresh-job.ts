@@ -1,11 +1,10 @@
 /**
  * Application-level cron job for refreshing the feed materialized view.
- * Since pg_cron is unavailable on Neon, we use setInterval as a fallback.
+ * Uses setInterval to refresh the materialized view periodically.
  * Runs every 30 seconds to match the requirement.
  */
 
-import { neon } from '@neondatabase/serverless';
-import { env } from '../config/env';
+import { sql } from '../db/sql';
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
 let isRefreshing = false;
@@ -23,7 +22,6 @@ async function refreshFeedMaterializedView(): Promise<void> {
   const startTime = Date.now();
 
   try {
-    const sql = neon(env.DATABASE_URL);
     try {
       await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY feed_items`;
     } catch (err: any) {

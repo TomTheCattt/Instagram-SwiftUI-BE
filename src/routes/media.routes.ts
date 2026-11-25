@@ -1,7 +1,7 @@
 /**
  * Media Routes
  * Endpoints for media processing status, CDN URL rewriting, and media management
- * Implements BE-109: CDN integration (Cloudflare/Neon CDN)
+ * Implements BE-109: CDN integration (Cloudflare / CDN)
  */
 
 import { Hono } from 'hono';
@@ -13,6 +13,7 @@ import * as schema from '../db/schema';
 import { eq, and, desc, sql, lt } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { env } from '../config/env';
+import { getStorageUrl, UPLOAD_BUCKET } from '../config/storage';
 import {
   rewriteMediaUrlToCdn,
   rewriteMediaItemUrls,
@@ -72,7 +73,7 @@ mediaRouter.get('/pending/:id/status', async (c) => {
 
   // Check if media item exists
   const mediaItem = await db.query.mediaItems.findFirst({
-    where: eq(schema.mediaItems.url, `${process.env.NEON_STORAGE_ENDPOINT}/uploads/${pending.storagePath}`),
+    where: eq(schema.mediaItems.url, getStorageUrl(UPLOAD_BUCKET, pending.storagePath)),
   });
 
   return c.json({
@@ -273,7 +274,7 @@ mediaRouter.get('/metadata/:storagePath', async (c) => {
   if (!pending) {
     // Check media_items
     const mediaItem = await db.query.mediaItems.findFirst({
-      where: eq(schema.mediaItems.url, `${process.env.NEON_STORAGE_ENDPOINT}/uploads/${storagePath}`),
+      where: eq(schema.mediaItems.url, getStorageUrl(UPLOAD_BUCKET, storagePath)),
     });
 
     if (!mediaItem) {

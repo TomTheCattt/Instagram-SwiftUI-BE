@@ -45,17 +45,8 @@ function validateMagicBytes(buffer: Uint8Array, contentType: string): boolean {
   );
 }
 
-// Neon Object Storage configuration
-const s3Client = new S3Client({
-  region: "auto",
-  endpoint: process.env.NEON_STORAGE_ENDPOINT || "https://storage.neon.tech",
-  credentials: {
-    accessKeyId: process.env.NEON_STORAGE_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.NEON_STORAGE_SECRET_ACCESS_KEY || "",
-  },
-});
-
-const UPLOAD_BUCKET = "uploads";
+// Object Storage configuration
+import { s3Client, getStorageUrl, UPLOAD_BUCKET } from "../config/storage";
 const PUBLIC_BUCKET = "public";
 
 const presignSchema = z.object({
@@ -112,7 +103,7 @@ const handlePresign = async (c: any) => {
   });
 
   const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
-  const fileUrl = `${process.env.NEON_STORAGE_ENDPOINT || "https://storage.example.com"}/${UPLOAD_BUCKET}/${key}`;
+  const fileUrl = getStorageUrl(UPLOAD_BUCKET, key);
 
   // Create pending upload record
   const [pending] = await db
@@ -245,7 +236,7 @@ uploadRouter.post("/image", async (c) => {
     .values({
       userId: user.id,
       storagePath,
-      url: `${process.env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}/${storagePath}`,
+      url: getStorageUrl(UPLOAD_BUCKET, storagePath),
       confirmed: false,
     })
     .returning();
@@ -306,7 +297,7 @@ uploadRouter.post("/video", async (c) => {
     .values({
       userId: user.id,
       storagePath,
-      url: `${process.env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}/${storagePath}`,
+      url: getStorageUrl(UPLOAD_BUCKET, storagePath),
       confirmed: false,
     })
     .returning();
@@ -315,7 +306,7 @@ uploadRouter.post("/video", async (c) => {
     success: true,
     data: {
       url: pending.url,
-      thumbnailUrl: `${process.env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}/${thumbnailPath}`,
+      thumbnailUrl: getStorageUrl(UPLOAD_BUCKET, thumbnailPath),
       duration: 0, // Would need video processing
       width: 0,
       height: 0,
@@ -361,7 +352,7 @@ uploadRouter.post("/avatar", async (c) => {
     })
   );
 
-  const avatarUrl = `${process.env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}/${storagePath}`;
+  const avatarUrl = getStorageUrl(UPLOAD_BUCKET, storagePath);
 
   // Update user avatar
   await db.update(schema.users).set({ avatarUrl, updatedAt: new Date() }).where(eq(schema.users.id, user.id));

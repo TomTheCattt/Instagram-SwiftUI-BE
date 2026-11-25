@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { sql } from "../src/db/sql";
 import * as dotenv from "dotenv";
 dotenv.config();
 
@@ -68,7 +68,6 @@ const unsplashAvatar = (id: string, size = 400) =>
 async function main() {
   const dbUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
   if (!dbUrl) throw new Error("DATABASE_URL not set");
-  const sql = neon(dbUrl);
 
   console.log("🔍 Checking existing counts and media...");
 

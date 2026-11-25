@@ -13,22 +13,14 @@
 import { db } from "../db/client";
 import { eq, and, desc } from "drizzle-orm";
 import * as schema from "../db/schema";
-import { S3Client, GetObjectCommand, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
+import { s3Client, getStorageUrl } from "../config/storage";
 
 // ============================================================================
 // Configuration
 // ============================================================================
-
-const s3Client = new S3Client({
-  region: "auto",
-  endpoint: process.env.NEON_STORAGE_ENDPOINT || "https://storage.neon.tech",
-  credentials: {
-    accessKeyId: process.env.NEON_STORAGE_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.NEON_STORAGE_SECRET_ACCESS_KEY || "",
-  },
-});
 
 const TUS_BUCKET = "tus-uploads";
 const MEDIA_BUCKET = "media";
@@ -209,7 +201,7 @@ async function processMedia(
   // Copy from TUS bucket to media bucket
   await copyObject(TUS_BUCKET, storagePath, MEDIA_BUCKET, finalPath);
 
-  const finalUrl = `${process.env.NEON_STORAGE_ENDPOINT}/${MEDIA_BUCKET}/${finalPath}`;
+  const finalUrl = getStorageUrl(MEDIA_BUCKET, finalPath);
 
   // Create media item record
   const mediaItem = await createMediaItem(upload, finalUrl, metadata);
@@ -246,7 +238,7 @@ async function processVideo(
   const finalPath = generateMediaPath(upload.userId, metadata.targetType, metadata.filename);
   await copyObject(TUS_BUCKET, storagePath, MEDIA_BUCKET, finalPath);
 
-  const finalUrl = `${process.env.NEON_STORAGE_ENDPOINT}/${MEDIA_BUCKET}/${finalPath}`;
+  const finalUrl = getStorageUrl(MEDIA_BUCKET, finalPath);
 
   // Create media item
   const mediaItem = await createMediaItem(upload, finalUrl, metadata);
@@ -265,7 +257,7 @@ async function processImage(
   const finalPath = generateMediaPath(upload.userId, metadata.targetType, metadata.filename);
   await copyObject(TUS_BUCKET, storagePath, MEDIA_BUCKET, finalPath);
 
-  const finalUrl = `${process.env.NEON_STORAGE_ENDPOINT}/${MEDIA_BUCKET}/${finalPath}`;
+  const finalUrl = getStorageUrl(MEDIA_BUCKET, finalPath);
 
   const mediaItem = await createMediaItem(upload, finalUrl, metadata);
 
@@ -298,7 +290,7 @@ async function generateThumbnails(
     // Placeholder: just copy the original for now
     await copyObject(MEDIA_BUCKET, storagePath, MEDIA_BUCKET, thumbPath);
     thumbnails.push({
-      url: `${process.env.NEON_STORAGE_ENDPOINT}/${MEDIA_BUCKET}/${thumbPath}`,
+      url: getStorageUrl(MEDIA_BUCKET, thumbPath),
       width: size.width,
       height: size.height,
     });
@@ -329,7 +321,7 @@ async function transcodeVideo(
     // Placeholder: copy original
     await copyObject(MEDIA_BUCKET, storagePath, MEDIA_BUCKET, variantPath);
     variants.push({
-      url: `${process.env.NEON_STORAGE_ENDPOINT}/${MEDIA_BUCKET}/${variantPath}`,
+      url: getStorageUrl(MEDIA_BUCKET, variantPath),
       bitrate: br.bitrate,
       resolution: br.resolution,
     });

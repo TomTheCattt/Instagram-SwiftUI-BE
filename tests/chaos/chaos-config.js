@@ -32,10 +32,26 @@ export const chaosConfig = {
 
   // Experiment scenarios
   scenarios: {
-    // 1. Neon Branch Failover
+    // 1. Database Failover
+    dbFailover: {
+      name: 'Database Failover',
+      description: 'Simulate primary database failure and verify failover to read replica',
+      type: 'infrastructure',
+      severity: 'critical',
+      duration: 120, // 2 minutes
+      steps: [
+        { action: 'measure_baseline', duration: 30 },
+        { action: 'failover_primary_branch', target: 'primary' },
+        { action: 'measure_impact', duration: 60 },
+        { action: 'restore_primary_branch', target: 'primary' },
+        { action: 'measure_recovery', duration: 30 },
+      ],
+      rollback: 'automatic',
+      hypothesis: 'API remains available with < 5s failover time, < 1% error rate during failover',
+    },
     neonBranchFailover: {
-      name: 'Neon Branch Failover',
-      description: 'Simulate primary Neon branch failure and verify failover to read replica',
+      name: 'Database Failover',
+      description: 'Simulate primary database failure and verify failover to read replica',
       type: 'infrastructure',
       severity: 'critical',
       duration: 120, // 2 minutes

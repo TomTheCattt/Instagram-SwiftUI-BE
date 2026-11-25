@@ -5,7 +5,7 @@ import { env } from "../config/env";
  * Structured JSON Logger Service
  *
  * Uses Pino for high-performance structured logging with:
- * - JSON output for log aggregation (Neon Logs/Loki)
+ * - JSON output for log aggregation (Loki/CloudWatch/Datadog)
  * - Request/response logging with trace context
  * - Error logging with stack traces
  * - Audit logging for mutating operations

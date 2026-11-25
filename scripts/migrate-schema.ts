@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { pool } from "../src/db/client";
 import * as dotenv from "dotenv";
 dotenv.config();
 
@@ -8,8 +8,7 @@ async function migrate() {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const sql = neon(dbUrl);
-  console.log("🚀 Starting database schema sync on Neon...");
+  console.log("🚀 Starting database schema sync on PostgreSQL...");
 
   const queries = [
     // 1. media_items
@@ -103,7 +102,7 @@ async function migrate() {
   for (const q of queries) {
     try {
       console.log(`Executing: ${q.slice(0, 60).replace(/\n/g, " ")}...`);
-      await sql.query(q);
+      await pool.query(q);
       console.log("  -> OK");
     } catch (err: any) {
       console.error(`  -> ERROR:`, err.message || err);

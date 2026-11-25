@@ -7,7 +7,7 @@
  * - Android: ConnectivityManager / NetworkCallback
  * - Web: navigator.connection (Network Information API)
  *
- * For Node.js/Neon Functions server-side, we infer from headers or use a fallback.
+ * For Node.js server-side, we infer from headers or use a fallback.
  */
 
 // Extend Navigator interface for web APIs not in TypeScript lib
@@ -46,7 +46,7 @@ export type NetworkChangeCallback = (info: NetworkInfo) => void;
 /**
  * NetworkDetector - Platform-agnostic network detection
  *
- * On the server (Neon Functions), we can't directly detect client network.
+ * On the server, we can't directly detect client network.
  * This utility provides:
  * 1. Server-side inference from headers
  * 2. Client-side interface for native platforms
@@ -390,7 +390,7 @@ export class WebNetworkDetector implements ClientNetworkDetector {
 }
 
 /**
- * Server-side network detector (for Neon Functions)
+ * Server-side network detector
  * Infers network type from request headers
  */
 export class ServerNetworkDetector extends NetworkDetector {

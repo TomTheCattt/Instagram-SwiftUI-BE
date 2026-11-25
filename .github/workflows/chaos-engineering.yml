@@ -11,6 +11,7 @@ on:
         required: true
         type: choice
         options:
+          - db-failover
           - neon-branch-failover
           - db-pool-exhaustion
           - api-latency-injection
@@ -75,11 +76,11 @@ jobs:
           echo "CHAOS_DURATION=${{ github.event.inputs.duration || '300' }}" >> $GITHUB_ENV
           echo "CHAOS_ENV=${{ github.event.inputs.environment || 'staging' }}" >> $GITHUB_ENV
 
-      - name: Run Neon Branch Failover Experiment
-        if: github.event.inputs.experiment == 'neon-branch-failover' || github.event.inputs.experiment == 'all'
+      - name: Run Database Failover Experiment
+        if: github.event.inputs.experiment == 'db-failover' || github.event.inputs.experiment == 'neon-branch-failover' || github.event.inputs.experiment == 'all'
         run: |
           k6 run tests/chaos/neon-branch-failover.js \
-            --out json=results/neon-failover-$(date +%s).json
+            --out json=results/failover-$(date +%s).json
         working-directory: ./
 
       - name: Run DB Pool Exhaustion Experiment

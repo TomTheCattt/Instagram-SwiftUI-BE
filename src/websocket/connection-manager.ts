@@ -2,7 +2,7 @@
  * ConnectionManager - WebSocket Connection Management
  *
  * Handles connections, subscriptions, presence, and broadcasting
- * Designed for Neon Functions with multi-isolate fan-out support
+ * Designed for standard WebSocket server with multi-instance fan-out support
  * Now integrates battery-optimized heartbeat system
  */
 

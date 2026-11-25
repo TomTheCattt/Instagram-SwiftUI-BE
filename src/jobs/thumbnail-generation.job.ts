@@ -4,8 +4,9 @@
  * Implements BE-106: Thumbnail generation (Sharp for images, FFmpeg for video)
  */
 
-import { neon } from '@neondatabase/serverless';
+import { sql } from '../db/sql';
 import { env } from '../config/env';
+import { STORAGE_ENDPOINT, UPLOAD_BUCKET } from '../config/storage';
 import {
   generateImageThumbnail,
   generateVideoThumbnail,
@@ -27,17 +28,14 @@ interface ThumbnailJob {
   createdAt: Date;
 }
 
-const UPLOAD_BUCKET = 'uploads';
-const STORAGE_BASE_URL = `${env.NEON_STORAGE_ENDPOINT}/${UPLOAD_BUCKET}`;
+const STORAGE_BASE_URL = `${STORAGE_ENDPOINT}/${UPLOAD_BUCKET}`;
 
 /**
  * Get pending thumbnail generation jobs from database
  */
 async function getPendingThumbnailJobs(limit: number = 20): Promise<ThumbnailJob[]> {
-  const sqlClient = neon(env.DATABASE_URL);
-
   // Get confirmed uploads that don't have thumbnails generated yet
-  const jobs = await sqlClient`
+  const jobs = await sql`
     SELECT
       pu.id as pending_upload_id,
       pu.user_id,
@@ -102,8 +100,6 @@ function getThumbnailDimensions(mediaType: string): { width: number; height: num
  * Process a single thumbnail generation job
  */
 async function processThumbnailJob(job: ThumbnailJob): Promise<void> {
-  const sqlClient = neon(env.DATABASE_URL);
-
   console.log(`[ThumbnailGen] Processing job ${job.id} for ${job.storagePath}`);
 
   try {
@@ -143,7 +139,7 @@ async function processThumbnailJob(job: ThumbnailJob): Promise<void> {
     const dbMediaType = isVideoFile(job.storagePath) ? 'VIDEO' : 'IMAGE';
 
     // Create media_items record with thumbnail
-    await sqlClient`
+    await sql`
       INSERT INTO media_items (
         mediaable_type,
         mediaable_id,
@@ -176,7 +172,7 @@ async function processThumbnailJob(job: ThumbnailJob): Promise<void> {
     `;
 
     // Mark pending upload as having thumbnail generated
-    await sqlClient`
+    await sql`
       UPDATE pending_uploads
       SET updated_at = NOW()
       WHERE id = ${job.pendingUploadId}
@@ -189,7 +185,7 @@ async function processThumbnailJob(job: ThumbnailJob): Promise<void> {
     console.error(`[ThumbnailGen] Job ${job.id} failed:`, errorMessage);
 
     // Update pending_uploads with error
-    await sqlClient`
+    await sql`
       UPDATE pending_uploads
       SET updated_at = NOW()
       WHERE id = ${job.pendingUploadId}
@@ -298,9 +294,7 @@ export async function getThumbnailJobStatus(): Promise<{
   isRunning: boolean;
   pendingJobsCount: number;
 }> {
-  const sqlClient = neon(env.DATABASE_URL);
-
-  const result = await sqlClient`
+  const result = await sql`
     SELECT COUNT(*) as count
     FROM pending_uploads pu
     WHERE pu.confirmed = true

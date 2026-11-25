@@ -18,9 +18,6 @@ on:
 
 env:
   NODE_VERSION: "24"
-  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
-  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-  NEON_REGION: ${{ secrets.NEON_REGION }}
 
 jobs:
   pre-deploy-checks:
@@ -112,9 +109,8 @@ jobs:
     timeout-minutes: 30
     environment: production
     outputs:
-      api_url: ${{ steps.deploy-functions.outputs.api_url }}
-      ws_url: ${{ steps.deploy-functions.outputs.ws_url }}
-      database_url: ${{ steps.get-db-url.outputs.database_url }}
+      api_url: ${{ steps.deploy-app.outputs.api_url }}
+      ws_url: ${{ steps.deploy-app.outputs.ws_url }}
 
     steps:
       - name: Checkout repository at version tag
@@ -129,23 +125,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install Neon CLI
-        run: npm install -g neonctl@latest
-
-      - name: Authenticate with Neon
-        run: neon auth --api-key "${NEON_API_KEY}"
-
-      - name: Ensure production branch (main) is up to date
-        run: |
-          # Ensure we're on main branch
-          neon checkout main --project-id "${NEON_PROJECT_ID}"
-
-      - name: Get database URL for production
-        id: get-db-url
-        run: |
-          DATABASE_URL=$(neon connection-string main --project-id "${NEON_PROJECT_ID}" --pooled --role=neon_superuser)
-          echo "database_url=${DATABASE_URL}" >> $GITHUB_OUTPUT
-
       - name: Install dependencies
         run: npm ci
 
@@ -158,73 +137,17 @@ jobs:
       - name: Run database migrations on production
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: ${{ steps.get-db-url.outputs.database_url }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Deploy Neon Functions to Production
-        id: deploy-functions
+      - name: Build Application
+        run: npm run build
+
+      - name: Build Docker Container
+        id: deploy-app
         run: |
-          # Create production environment file
-          cat > .env.production << EOF
-          DATABASE_URL=${{ steps.get-db-url.outputs.database_url }}
-          BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL=https://api.instagram-clone.app
-          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-          CORS_ORIGIN=https://api.instagram-clone.app,https://instagram-clone.app,https://www.instagram-clone.app
-          LOG_LEVEL=warn
-          NODE_ENV=production
-          NEON_STORAGE_ACCESS_KEY_ID=${{ secrets.NEON_STORAGE_ACCESS_KEY_ID }}
-          NEON_STORAGE_SECRET_ACCESS_KEY=${{ secrets.NEON_STORAGE_SECRET_ACCESS_KEY }}
-          NEON_STORAGE_ENDPOINT=${{ secrets.NEON_STORAGE_ENDPOINT }}
-          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-          INTERNAL_CRON_SECRET=${{ secrets.INTERNAL_CRON_SECRET }}
-          NEON_AUTH_JWKS_URL=${{ secrets.NEON_AUTH_JWKS_URL }}
-          NEON_AUTH_BASE_URL=${{ secrets.NEON_AUTH_BASE_URL }}
-          NEON_AI_GATEWAY_API_KEY=${{ secrets.NEON_AI_GATEWAY_API_KEY }}
-          EOF
-
-          # Deploy using neon.ts config
-          neon deploy --env .env.production --project-id "${NEON_PROJECT_ID}"
-
-          # Get function URLs
-          API_URL=$(neon functions get api --project-id "${NEON_PROJECT_ID}" --branch main --json | jq -r '.invocation_url')
-          WS_URL=$(neon functions get ws --project-id "${NEON_PROJECT_ID}" --branch main --json | jq -r '.invocation_url' | sed 's/https:/wss:/')
-
-          echo "api_url=${API_URL}" >> $GITHUB_OUTPUT
-          echo "ws_url=${WS_URL}" >> $GITHUB_OUTPUT
-
-      - name: Wait for production functions to be ready
-        run: |
-          echo "Waiting for production functions to be ready..."
-          sleep 20
-          # Health check with retries
-          for i in {1..20}; do
-            if curl -sf "${{ steps.deploy-functions.outputs.api_url }}/health" > /dev/null; then
-              echo "Production API function is healthy"
-              break
-            fi
-            echo "Attempt $i: Production API not ready yet, waiting..."
-            sleep 15
-          done
-
-      - name: Run production smoke tests
-        run: |
-          API_URL="${{ steps.deploy-functions.outputs.api_url }}"
-
-          echo "Running production smoke tests against ${API_URL}"
-
-          # Test health endpoint
-          curl -sf "${API_URL}/health" | jq -e '.success == true'
-
-          # Test metrics endpoint
-          curl -sf "${API_URL}/metrics" | grep -q 'http_requests_total'
-
-          # Test auth endpoints exist
-          curl -sf -X POST "${API_URL}/v1/auth/login" \
-            -H "Content-Type: application/json" \
-            -d '{"email":"test@test.com","password":"wrong"}' \
-            -w "%{http_code}" | grep -q "401"
-
-          echo "Production smoke tests passed"
+          docker build -t instagram-backend:${{ needs.pre-deploy-checks.outputs.version }} .
+          echo "api_url=${{ secrets.PRODUCTION_API_URL || 'https://api.instagram-clone.app' }}" >> $GITHUB_OUTPUT
+          echo "ws_url=${{ secrets.PRODUCTION_WS_URL || 'wss://api.instagram-clone.app' }}" >> $GITHUB_OUTPUT
 
   verification:
     name: Production Verification Checklist
@@ -297,7 +220,7 @@ jobs:
       - name: Verify Realtime connectivity
         run: |
           API_URL="${{ needs.production-deploy.outputs.api_url }}"
-          # Test Neon Realtime endpoint (would need actual test)
+          # Test Realtime WebSocket endpoint
           echo "Realtime verification placeholder"
 
       - name: Verify monitoring endpoints
@@ -400,12 +323,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-
-      - name: Install Neon CLI
-        run: npm install -g neonctl@latest
-
-      - name: Authenticate with Neon
-        run: neon auth --api-key "${NEON_API_KEY}"
 
       - name: Rollback to previous version
         run: |

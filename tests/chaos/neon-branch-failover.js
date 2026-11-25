@@ -1,5 +1,5 @@
 /**
- * Chaos Experiment: Neon Branch Failover
+ * Chaos Experiment: Database Failover
  * Tests automatic failover from primary to read replica
  * Run with: k6 run tests/chaos/neon-branch-failover.js
  */
@@ -17,7 +17,7 @@ const requestLatency = new Trend('request_latency_ms', true);
 const errorRate = new Rate('error_rate');
 
 // Experiment configuration
-const EXPERIMENT = chaosConfig.scenarios.neonBranchFailover;
+const EXPERIMENT = chaosConfig.scenarios.dbFailover || chaosConfig.scenarios.neonBranchFailover;
 const API_BASE = chaosConfig.apiBaseUrl;
 const DURATION = EXPERIMENT.duration;
 

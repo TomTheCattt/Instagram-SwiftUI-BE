@@ -239,7 +239,7 @@ app.use("/v1/*", idempotencyMiddleware({
 }));
 
 // ============================================================================
-// Internal Cleanup Endpoints (called by Neon Functions cron triggers)
+// Internal Cleanup Endpoints (called by cron triggers)
 // ============================================================================
 
 const INTERNAL_SECRET = env.INTERNAL_CRON_SECRET || "dev-secret-change-in-production";
@@ -251,20 +251,10 @@ function verifyInternalSecret(c: any) {
   }
 }
 
-// S3 client for cleanup (lazy initialization)
-import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
-let s3Client: S3Client | null = null;
-function getS3Client(): S3Client {
-  if (!s3Client) {
-    s3Client = new S3Client({
-      region: "auto",
-      endpoint: env.NEON_STORAGE_ENDPOINT || "https://storage.neon.tech",
-      credentials: {
-        accessKeyId: env.NEON_STORAGE_ACCESS_KEY_ID || "",
-        secretAccessKey: env.NEON_STORAGE_SECRET_ACCESS_KEY || "",
-      },
-    });
-  }
+// S3 client for cleanup
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { s3Client } from "./config/storage";
+function getS3Client() {
   return s3Client;
 }
 

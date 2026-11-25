@@ -13,19 +13,11 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID, createHash } from "crypto";
 import { connectionManager } from "../websocket/connection-manager";
 import { MessageEnvelope } from "../websocket/connection-manager";
+import { s3Client, getStorageUrl } from "../config/storage";
 
 // ============================================================================
 // Configuration
 // ============================================================================
-
-const s3Client = new S3Client({
-  region: "auto",
-  endpoint: process.env.NEON_STORAGE_ENDPOINT || "https://storage.neon.tech",
-  credentials: {
-    accessKeyId: process.env.NEON_STORAGE_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.NEON_STORAGE_SECRET_ACCESS_KEY || "",
-  },
-});
 
 const TUS_BUCKET = "tus-uploads";
 const MAX_UPLOAD_SIZE = 500 * 1024 * 1024; // 500MB
@@ -130,7 +122,7 @@ export class TusService {
     this.metadataCache.set(uploadId, metadata);
 
     // Create multipart upload in S3
-    const uploadUrl = `${process.env.NEON_STORAGE_ENDPOINT}/${TUS_BUCKET}/${storagePath}`;
+    const uploadUrl = getStorageUrl(TUS_BUCKET, storagePath);
 
     const uploadInfo: TusUploadInfo = {
       id: uploadId,
@@ -246,7 +238,7 @@ export class TusService {
 
     return {
       id: upload.id,
-      uploadUrl: `${process.env.NEON_STORAGE_ENDPOINT}/${TUS_BUCKET}/${upload.storagePath}`,
+      uploadUrl: getStorageUrl(TUS_BUCKET, upload.storagePath),
       offset: Number(upload.uploadedSize),
       size: Number(upload.fileSize),
       metadata,
@@ -329,7 +321,7 @@ export class TusService {
       const metadata = this.metadataCache.get(upload.id) || (upload.metadata as unknown as TusUploadMetadata);
       return {
         id: upload.id,
-        uploadUrl: `${process.env.NEON_STORAGE_ENDPOINT}/${TUS_BUCKET}/${upload.storagePath}`,
+        uploadUrl: getStorageUrl(TUS_BUCKET, upload.storagePath),
         offset: Number(upload.uploadedSize),
         size: Number(upload.fileSize),
         metadata,
@@ -405,7 +397,7 @@ export class TusService {
     // For now, we'll just return the final path
     // The actual concatenation would be done by a worker
 
-    return `${process.env.NEON_STORAGE_ENDPOINT}/${TUS_BUCKET}/${upload.storagePath}`;
+    return getStorageUrl(TUS_BUCKET, upload.storagePath);
   }
 
   /**

@@ -56,18 +56,25 @@ const envSchema = z.object({
   // CDN base URL for media delivery
   CDN_BASE_URL: z.string().optional(),
 
-  // Neon Object Storage (injected at runtime)
+  // Object Storage (S3 / Cloudflare R2 / MinIO)
+  S3_ENDPOINT: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_REGION: z.string().default('auto'),
+  S3_UPLOAD_BUCKET: z.string().default('uploads'),
+  S3_MEDIA_BUCKET: z.string().default('media'),
+  S3_THUMBNAIL_BUCKET: z.string().default('thumbnails'),
+
+  // Deprecated Neon Object Storage fallback
   NEON_STORAGE_ENDPOINT: z.string().optional(),
   NEON_STORAGE_ACCESS_KEY_ID: z.string().optional(),
   NEON_STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
 
-  // AI Gateway (injected at runtime)
+  // AI Gateway
+  AI_GATEWAY_TOKEN: z.string().optional(),
+  AI_GATEWAY_BASE_URL: z.string().optional(),
   NEON_AI_GATEWAY_TOKEN: z.string().optional(),
   NEON_AI_GATEWAY_BASE_URL: z.string().optional(),
-
-  // Neon Auth (injected at runtime)
-  NEON_AUTH_BASE_URL: z.string().optional(),
-  NEON_AUTH_JWKS_URL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
