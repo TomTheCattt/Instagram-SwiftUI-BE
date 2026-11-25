@@ -67,25 +67,33 @@ reelRouter.get("/feed", async (c) => {
   const reelService = createReelService(user.id);
   const result = await reelService.getFeed(cursor, perPage);
 
-  const mappedReels = (result.items || []).map((r: any) => ({
+  const items = (result.items || []).map((r: any) => ({
     id: r.id,
     caption: r.caption,
     user: {
-      id: r.authorId || user.id,
-      username: r.username || "reelcreator",
-      displayName: r.displayName || r.fullName || "Reel Creator",
-      avatarUrl: r.avatarUrl || "https://storage.example.com/avatars/reel.jpg",
-      isVerified: true,
+      id: r.author?.id || r.authorId || user.id,
+      username: r.author?.username || r.username || "reelcreator",
+      displayName: r.author?.fullName || r.author?.username || r.displayName || r.fullName || "Reel Creator",
+      fullName: r.author?.fullName || r.fullName || null,
+      avatarUrl: r.author?.avatarUrl || r.avatarUrl || "https://storage.example.com/avatars/reel.jpg",
+      isVerified: r.author?.isVerified ?? r.isVerified ?? false,
     },
     video: {
       id: r.id,
-      url: r.videoUrl || "https://storage.example.com/reels/feed1.mp4",
-      thumbnailUrl: r.thumbnailUrl || "https://storage.example.com/reels/thumb1.jpg",
+      url: r.videoUrl,
+      thumbnailUrl: r.thumbnailUrl || r.videoUrl,
       duration: Number(r.duration) || 15.0,
       width: 1080,
       height: 1920,
     },
-    audio: {
+    audio: r.audio ? {
+      id: r.audio.id,
+      title: r.audio.name || r.audio.title || "Trending Audio",
+      name: r.audio.name || "Trending Audio",
+      artist: r.audio.artist || "Artist Name",
+      url: r.audio.audioUrl || r.audio.url || "https://storage.example.com/audio/trending.mp3",
+      duration: r.audio.duration || 60,
+    } : {
       id: r.audioId || crypto.randomUUID(),
       title: r.audioName || "Trending Audio",
       name: r.audioName || "Trending Audio",
@@ -93,55 +101,22 @@ reelRouter.get("/feed", async (c) => {
       url: "https://storage.example.com/audio/trending.mp3",
       duration: 60,
     },
-    likesCount: r.likesCount || 1000,
-    commentsCount: r.commentsCount || 50,
-    sharesCount: 25,
-    isLiked: false,
-    isSaved: false,
-    createdAt: r.createdAt || new Date().toISOString(),
+    videoUrl: r.videoUrl,
+    thumbnailUrl: r.thumbnailUrl,
+    likesCount: r.likesCount || 0,
+    commentsCount: r.commentsCount || 0,
+    sharesCount: r.sharesCount || 0,
+    isLiked: r.isLiked || false,
+    isSaved: r.isSaved || false,
+    createdAt: r.createdAt ? (r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt) : new Date().toISOString(),
   }));
 
   return c.json({
     success: true,
     data: {
-      items: result.items,
-      reels: mappedReels.length > 0 ? mappedReels : [
-        {
-          id: crypto.randomUUID(),
-          caption: "Amazing reel! 🎬",
-          user: {
-            id: user.id,
-            username: "reelcreator",
-            displayName: "Reel Creator",
-            avatarUrl: "https://storage.example.com/avatars/reel.jpg",
-            isVerified: true,
-          },
-          video: {
-            id: crypto.randomUUID(),
-            url: "https://storage.example.com/reels/video123.mp4",
-            thumbnailUrl: "https://storage.example.com/reels/thumb_video123.jpg",
-            duration: 30.5,
-            width: 1080,
-            height: 1920,
-          },
-          audio: {
-            id: crypto.randomUUID(),
-            title: "Trending Audio",
-            name: "Trending Audio",
-            artist: "Artist Name",
-            url: "https://storage.example.com/audio/trending.mp3",
-            duration: 60,
-          },
-          likesCount: 1000,
-          commentsCount: 50,
-          sharesCount: 25,
-          isLiked: false,
-          isSaved: false,
-          createdAt: new Date().toISOString(),
-        }
-      ],
-      nextCursor: result.nextCursor || "eyJpZCI6IjQ1NiJ9",
-      hasMore: true,
+      items,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
     },
   });
 });

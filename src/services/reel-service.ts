@@ -270,7 +270,7 @@ export class ReelService {
 
     // If not own profile, only show public reels
     if (targetUserId !== currentUserId) {
-      whereConditions.push(eq(schema.reels.audience, "PUBLIC"));
+      whereConditions.push(sql`lower(${schema.reels.audience}) = 'public'`);
     }
 
     if (parsedCursor) {
@@ -1127,7 +1127,7 @@ export class ReelService {
     const whereConditions = [
       eq(schema.reels.audioId, audioId),
       isNull(schema.reels.deletedAt),
-      eq(schema.reels.audience, "PUBLIC"),
+      sql`lower(${schema.reels.audience}) = 'public'`,
     ];
 
     if (parsedCursor) {
@@ -1330,7 +1330,7 @@ export class ReelService {
     const whereConditions = [
       inArray(schema.reels.authorId, followingIds),
       isNull(schema.reels.deletedAt),
-      eq(schema.reels.audience, "PUBLIC"),
+      sql`lower(${schema.reels.audience}) = 'public'`,
       gte(schema.reels.createdAt, windowStart),
     ];
 
@@ -1343,7 +1343,7 @@ export class ReelService {
       whereConditions.push(lt(schema.reels.createdAt, new Date(cursor.timestamp)));
     }
 
-    const reelsList = await db.select({
+    let reelsList = await db.select({
       id: schema.reels.id,
       authorId: schema.reels.authorId,
       videoUrl: schema.reels.videoUrl,
@@ -1381,6 +1381,65 @@ export class ReelService {
       .where(and(...whereConditions))
       .limit(limit)
       .orderBy(desc(schema.reels.createdAt));
+
+    // If following users do not have enough reels, backfill with public explore reels
+    if (reelsList.length < limit) {
+      const existingIds = new Set(reelsList.map(r => r.id));
+      const additionalConditions = [
+        isNull(schema.reels.deletedAt),
+        sql`lower(${schema.reels.audience}) = 'public'`,
+        gte(schema.reels.createdAt, windowStart),
+      ];
+      if (blockedIds.length > 0) {
+        additionalConditions.push(not(inArray(schema.reels.authorId, blockedIds)));
+      }
+      if (existingIds.size > 0) {
+        additionalConditions.push(not(inArray(schema.reels.id, [...existingIds])));
+      }
+      if (cursor) {
+        additionalConditions.push(lt(schema.reels.createdAt, new Date(cursor.timestamp)));
+      }
+      const moreReels = await db.select({
+        id: schema.reels.id,
+        authorId: schema.reels.authorId,
+        videoUrl: schema.reels.videoUrl,
+        thumbnailUrl: schema.reels.thumbnailUrl,
+        caption: schema.reels.caption,
+        audioId: schema.reels.audioId,
+        audioName: schema.reels.audioName,
+        audioArtist: schema.reels.audioArtist,
+        isOriginalAudio: schema.reels.isOriginalAudio,
+        duration: schema.reels.duration,
+        likesCount: schema.reels.likesCount,
+        commentsCount: schema.reels.commentsCount,
+        sharesCount: schema.reels.sharesCount,
+        savesCount: schema.reels.savesCount,
+        viewsCount: schema.reels.viewsCount,
+        playsCount: schema.reels.playsCount,
+        audience: schema.reels.audience,
+        allowRemix: schema.reels.allowRemix,
+        allowDownload: schema.reels.allowDownload,
+        searchVector: schema.reels.searchVector,
+        createdAt: schema.reels.createdAt,
+        updatedAt: schema.reels.updatedAt,
+        deletedAt: schema.reels.deletedAt,
+        author: {
+          id: schema.users.id,
+          username: schema.users.username,
+          fullName: schema.users.fullName,
+          avatarUrl: schema.users.avatarUrl,
+          isVerified: schema.users.isVerified,
+          isPrivate: schema.users.isPrivate,
+        },
+      })
+        .from(schema.reels)
+        .innerJoin(schema.users, eq(schema.users.id, schema.reels.authorId))
+        .where(and(...additionalConditions))
+        .limit(limit - reelsList.length)
+        .orderBy(desc(schema.reels.createdAt));
+
+      reelsList = [...reelsList, ...moreReels];
+    }
 
     // Check engagement state
     const reelIds = reelsList.map((r) => r.id);
@@ -1475,7 +1534,7 @@ export class ReelService {
 
     const baseWhereConditions = [
       isNull(schema.reels.deletedAt),
-      eq(schema.reels.audience, "PUBLIC"),
+      sql`lower(${schema.reels.audience}) = 'public'`,
       gte(schema.reels.createdAt, trendingWindow),
     ];
 
