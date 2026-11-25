@@ -82,8 +82,12 @@ async function processPendingJobs(): Promise<void> {
     for (const job of pendingJobs) {
       await processJob(job);
     }
-  } catch (error) {
-    console.error("[TUS Processing] Error processing jobs:", error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[TUS Processing] Database connection refused (ECONNREFUSED). Waiting for database...');
+    } else {
+      console.error("[TUS Processing] Error processing jobs:", error);
+    }
   } finally {
     isProcessing = false;
   }

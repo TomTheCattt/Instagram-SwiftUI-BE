@@ -192,8 +192,12 @@ async function runTranscodingLoop(): Promise<void> {
     const duration = Date.now() - startTime;
     console.log(`[MediaTranscoding] Processed ${jobs.length} jobs in ${duration}ms`);
 
-  } catch (error) {
-    console.error('[MediaTranscoding] Loop error:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[MediaTranscoding] Database connection refused (ECONNREFUSED). Waiting for database...');
+    } else {
+      console.error('[MediaTranscoding] Loop error:', error);
+    }
   } finally {
     isProcessing = false;
   }

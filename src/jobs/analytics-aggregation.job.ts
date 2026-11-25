@@ -547,9 +547,13 @@ export class AnalyticsAggregationJob {
             updated_at = NOW()
         `);
       }
-    } catch (error) {
-      // Sponsored tables might not exist yet
-      console.warn("[AnalyticsAggregation] Revenue metrics skipped:", error);
+    } catch (error: any) {
+      if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+        console.warn("[AnalyticsAggregation] Revenue metrics skipped: Database connection refused (ECONNREFUSED).");
+      } else {
+        // Sponsored tables might not exist yet
+        console.warn("[AnalyticsAggregation] Revenue metrics skipped:", error?.message || error);
+      }
     }
   }
 

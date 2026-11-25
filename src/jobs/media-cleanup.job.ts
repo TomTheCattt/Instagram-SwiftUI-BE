@@ -72,8 +72,12 @@ async function cleanupExpiredPendingUploads(): Promise<{ deletedCount: number; f
 
     console.log(`[MediaCleanup] Deleted ${deletedCount} expired pending uploads`);
 
-  } catch (error) {
-    console.error('[MediaCleanup] Error cleaning expired pending uploads:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[MediaCleanup] Database connection refused (ECONNREFUSED) in cleanupExpiredPendingUploads.');
+    } else {
+      console.error('[MediaCleanup] Error cleaning expired pending uploads:', error);
+    }
   }
 
   return { deletedCount, freedBytes };
@@ -161,8 +165,12 @@ async function cleanupOrphanedFiles(): Promise<{ deletedCount: number; freedByte
         }
       }
 
-    } catch (error) {
-      console.error(`[MediaCleanup] Error scanning bucket ${bucket}:`, error);
+    } catch (error: any) {
+      if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+        console.warn(`[MediaCleanup] Storage connection refused (ECONNREFUSED) for bucket ${bucket}.`);
+      } else {
+        console.error(`[MediaCleanup] Error scanning bucket ${bucket}:`, error);
+      }
     }
   }
 
@@ -187,8 +195,12 @@ async function cleanupFailedProcessing(): Promise<{ deletedCount: number }> {
     deletedCount = result.length;
     console.log(`[MediaCleanup] Deleted ${deletedCount} failed processing records`);
 
-  } catch (error) {
-    console.error('[MediaCleanup] Error cleaning failed processing records:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[MediaCleanup] Database connection refused (ECONNREFUSED) in cleanupFailedProcessing.');
+    } else {
+      console.error('[MediaCleanup] Error cleaning failed processing records:', error);
+    }
   }
 
   return { deletedCount };
@@ -250,8 +262,12 @@ async function cleanupExpiredStoryMedia(): Promise<{ deletedCount: number }> {
     deletedCount = expiredStories.length;
     console.log(`[MediaCleanup] Cleaned up ${deletedCount} expired stories`);
 
-  } catch (error) {
-    console.error('[MediaCleanup] Error cleaning expired story media:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[MediaCleanup] Database connection refused (ECONNREFUSED) in cleanupExpiredStoryMedia.');
+    } else {
+      console.error('[MediaCleanup] Error cleaning expired story media:', error);
+    }
   }
 
   return { deletedCount };

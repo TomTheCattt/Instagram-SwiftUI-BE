@@ -56,8 +56,12 @@ async function cleanupExpiredStories(): Promise<void> {
     } else {
       console.log('[StoryExpiration] No expired stories found');
     }
-  } catch (error) {
-    console.error('[StoryExpiration] Error:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[StoryExpiration] Database connection refused (ECONNREFUSED). Waiting for database...');
+    } else {
+      console.error('[StoryExpiration] Error:', error);
+    }
   } finally {
     isCleaning = false;
   }

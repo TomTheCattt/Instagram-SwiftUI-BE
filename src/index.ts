@@ -114,7 +114,7 @@ const app = new Hono();
 // Background Jobs
 // ============================================================================
 // Start feed refresh job (every 30 seconds)
-if (env.NODE_ENV !== 'test') {
+if (env.NODE_ENV !== 'test' && env.ENABLE_BACKGROUND_JOBS) {
   startFeedRefreshJob();
   startStoryExpirationJob();
 

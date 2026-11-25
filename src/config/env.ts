@@ -47,6 +47,12 @@ const envSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   OTEL_SERVICE_NAME: z.string().default('instagram-clone-api'),
 
+  // Background Jobs
+  ENABLE_BACKGROUND_JOBS: z
+    .string()
+    .optional()
+    .transform((val) => val === undefined || val === 'true' || val === '1'),
+
   // Internal Cron Secret
   INTERNAL_CRON_SECRET: z.string().optional(),
 

@@ -35,8 +35,12 @@ async function refreshFeedMaterializedView(): Promise<void> {
     }
     const duration = Date.now() - startTime;
     console.log(`[FeedRefresh] Completed in ${duration}ms`);
-  } catch (error) {
-    console.error('[FeedRefresh] Error:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[FeedRefresh] Database connection refused (ECONNREFUSED). Waiting for database...');
+    } else {
+      console.error('[FeedRefresh] Error:', error);
+    }
   } finally {
     isRefreshing = false;
   }

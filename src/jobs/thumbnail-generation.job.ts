@@ -223,8 +223,12 @@ async function runThumbnailLoop(): Promise<void> {
     const duration = Date.now() - startTime;
     console.log(`[ThumbnailGen] Processed ${jobs.length} jobs in ${duration}ms`);
 
-  } catch (error) {
-    console.error('[ThumbnailGen] Loop error:', error);
+  } catch (error: any) {
+    if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+      console.warn('[ThumbnailGen] Database connection refused (ECONNREFUSED). Waiting for database...');
+    } else {
+      console.error('[ThumbnailGen] Loop error:', error);
+    }
   } finally {
     isProcessing = false;
   }
