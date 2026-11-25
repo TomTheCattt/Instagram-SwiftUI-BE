@@ -9,11 +9,14 @@ if (!DATABASE_URL) {
 }
 
 // Create standard PostgreSQL connection pool
+const isLocal = !DATABASE_URL || DATABASE_URL.includes("localhost") || DATABASE_URL.includes("127.0.0.1") || DATABASE_URL.includes("@postgres:");
+
 export const pool = new Pool({
   connectionString: DATABASE_URL,
   max: parseInt(process.env.DB_POOL_MAX || "10", 10),
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
 });
 
 pool.on("error", (err) => {
