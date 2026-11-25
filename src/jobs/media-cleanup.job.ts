@@ -166,8 +166,14 @@ async function cleanupOrphanedFiles(): Promise<{ deletedCount: number; freedByte
       }
 
     } catch (error: any) {
-      if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-        console.warn(`[MediaCleanup] Storage connection refused (ECONNREFUSED) for bucket ${bucket}.`);
+      if (
+        error?.code === 'ECONNREFUSED' ||
+        error?.code === 'EPERM' ||
+        error?.cause?.code === 'ECONNREFUSED' ||
+        error?.name === 'TimeoutError' ||
+        error?.$metadata
+      ) {
+        console.warn(`[MediaCleanup] Storage not reachable for bucket ${bucket}. Skipping orphaned files check.`);
       } else {
         console.error(`[MediaCleanup] Error scanning bucket ${bucket}:`, error);
       }
