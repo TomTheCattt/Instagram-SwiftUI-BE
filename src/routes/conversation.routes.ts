@@ -106,16 +106,16 @@ conversationRouter.get("/", async (c) => {
   }
 
   const rawItems = (result.items || []) as Record<string, unknown>[];
-  const mappedConversations = rawItems.map((conv) => {
-    const convId = (conv.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : conv.id) as string;
+  const items = rawItems.map((conv) => {
+    const convId = conv.id as string;
     const members = (conv.members || []) as Record<string, unknown>[];
     const participants = members.map((m) => {
       const u = m.user as Record<string, unknown> | undefined;
       return {
-        id: (u?.id || m.userId || "e2490de5-5bd3-43d5-b7c4-526e33f71304") as string,
-        username: (u?.username || "friend") as string,
-        displayName: (u?.fullName || u?.username || "Friend Name") as string,
-        avatarUrl: (u?.avatarUrl || "https://storage.example.com/avatars/friend.jpg") as string,
+        id: (u?.id || m.userId) as string,
+        username: (u?.username || "user") as string,
+        displayName: (u?.fullName || u?.username || "User") as string,
+        avatarUrl: (u?.avatarUrl || null) as string | null,
         isVerified: (u?.isVerified ?? false) as boolean,
       };
     });
@@ -125,65 +125,29 @@ conversationRouter.get("/", async (c) => {
       ...conv,
       id: convId,
       type: conv.isGroup ? "group" : "direct",
-      participants: participants.length > 0 ? participants : [
-        {
-          id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-          username: "friend",
-          displayName: "Friend Name",
-          avatarUrl: "https://storage.example.com/avatars/friend.jpg",
-          isVerified: false,
-        }
-      ],
+      participants,
       lastMessage: lastMsg ? {
-        id: (lastMsg.id === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : lastMsg.id) as string,
+        id: lastMsg.id as string,
         type: ((lastMsg.contentType || "text") as string).toLowerCase(),
-        content: (lastMsg.textContent || "Hey! How are you?") as string,
-        senderId: (lastMsg.senderId || "e2490de5-5bd3-43d5-b7c4-526e33f71304") as string,
-        createdAt: (lastMsg.createdAt || new Date().toISOString()) as string,
-      } : {
-        id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-        type: "text",
-        content: "Hey! How are you?",
-        senderId: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-        createdAt: new Date().toISOString(),
-      },
-      unreadCount: (conv.unreadCount ?? 2) as number,
+        content: (lastMsg.textContent || "") as string,
+        senderId: lastMsg.senderId as string,
+        createdAt: lastMsg.createdAt as string,
+      } : null,
+      unreadCount: (conv.unreadCount ?? 0) as number,
       isMuted: (conv.isMuted ?? false) as boolean,
-      updatedAt: (conv.updatedAt || new Date().toISOString()) as string,
+      updatedAt: conv.updatedAt,
     };
   });
-
-  const fallbackConversation = {
-    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-    type: "direct",
-    participants: [
-      {
-        id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-        username: "friend",
-        displayName: "Friend Name",
-        avatarUrl: "https://storage.example.com/avatars/friend.jpg",
-        isVerified: false,
-      }
-    ],
-    lastMessage: {
-      id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-      type: "text",
-      content: "Hey! How are you?",
-      senderId: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-      createdAt: new Date().toISOString(),
-    },
-    unreadCount: 2,
-    isMuted: false,
-    updatedAt: new Date().toISOString(),
-  };
 
   return c.json({
     success: true,
     data: {
-      items: result.items || [],
-      conversations: mappedConversations.length > 0 ? mappedConversations : [fallbackConversation],
-      nextCursor: "eyJpZCI6IjQ1NiJ9",
-      hasMore: false,
+      items,
+      nextCursor: (result as any).nextCursor || null,
+      hasMore: (result as any).hasMore || false,
+      page,
+      perPage,
+      total: (result as any).total ?? items.length,
     },
   });
 });
@@ -455,44 +419,23 @@ conversationRouter.get("/:id/messages", async (c) => {
       id: msgId,
       conversationId: convId,
       type: (((m.contentType as string) || "text")).toLowerCase(),
-      content: (m.textContent || "Hello!") as string,
+      content: (m.textContent || "") as string,
       senderId: (m.senderId || user.id) as string,
       replyToId: (m.replyToId || null) as string | null,
       isEdited: (m.isEdited ?? false) as boolean,
       isDeleted: m.deletedAt ? true : false,
       reactions: reactionsGrouped,
-      createdAt: (m.createdAt || new Date().toISOString()) as string,
-      updatedAt: (m.updatedAt || new Date().toISOString()) as string,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
     };
   });
-
-  const fallbackMessage = {
-    id: "e2490de5-5bd3-43d5-b7c4-526e33f71304",
-    type: "text",
-    content: "Hello!",
-    senderId: user.id,
-    conversationId: conversationId === "abc123" ? "e2490de5-5bd3-43d5-b7c4-526e33f71304" : conversationId,
-    replyToId: null,
-    isEdited: false,
-    isDeleted: false,
-    reactions: [
-      {
-        emoji: "👍",
-        count: 1,
-        userIds: ["e2490de5-5bd3-43d5-b7c4-526e33f71304"],
-      },
-    ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
 
   return c.json({
     success: true,
     data: {
-      messages: mappedMessages.length > 0 ? mappedMessages : [fallbackMessage],
-      items: result.items || [],
-      nextCursor: "eyJpZCI6IjQ1NiJ9",
-      hasMore: false,
+      items: mappedMessages,
+      nextCursor: (result as any).nextCursor || null,
+      hasMore: (result as any).hasMore || false,
     },
   });
 });

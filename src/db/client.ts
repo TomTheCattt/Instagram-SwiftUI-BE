@@ -14,8 +14,8 @@ const isLocal = !DATABASE_URL || DATABASE_URL.includes("localhost") || DATABASE_
 
 export const pool = new Pool({
   connectionString: DATABASE_URL,
-  max: parseInt(process.env.DB_POOL_MAX || "10", 10),
-  idleTimeoutMillis: 30000,
+  max: parseInt(process.env.DB_POOL_MAX || "5", 10),
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,
   ssl: isLocal ? false : { rejectUnauthorized: false },
 });

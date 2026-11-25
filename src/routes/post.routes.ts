@@ -169,79 +169,32 @@ postRouter.get("/feed", async (c) => {
         duration: mi.duration ? parseFloat(mi.duration) : null,
         sortOrder: mi.sortOrder,
       })),
+      user: {
+        id: item.authorId,
+        username: item.username,
+        displayName: item.fullName || item.username,
+        avatarUrl: item.avatarUrl || null,
+        isVerified: item.isVerified,
+      },
+      media: postMediaItems.map((m) => ({
+        id: m.id,
+        type: (m.type || "image").toLowerCase(),
+        url: m.url,
+        thumbnailUrl: m.thumbnailUrl || m.url,
+        width: m.width || 1080,
+        height: m.height || 1080,
+      })),
       isLiked: false,
       isSaved: false,
     };
   });
 
-  const posts = feedItems.map((fi) => ({
-    id: fi.id,
-    caption: fi.caption,
-    user: {
-      id: fi.author.id,
-      username: fi.author.username,
-      displayName: fi.author.fullName || fi.author.username,
-      avatarUrl: fi.author.avatarUrl || "https://storage.example.com/avatars/feed.jpg",
-      isVerified: fi.author.isVerified,
-    },
-    media: fi.mediaItems.length > 0 ? fi.mediaItems.map((m) => ({
-      id: m.id,
-      type: (m.type || "image").toLowerCase(),
-      url: m.url,
-      thumbnailUrl: m.thumbnailUrl || m.url,
-      width: m.width || 1080,
-      height: m.height || 1080,
-    })) : [
-      {
-        id: crypto.randomUUID(),
-        type: "image",
-        url: "https://storage.example.com/posts/feed1.jpg",
-        thumbnailUrl: "https://storage.example.com/posts/thumb1.jpg",
-        width: 1080,
-        height: 1080,
-      }
-    ],
-    likesCount: fi.likesCount,
-    commentsCount: fi.commentsCount,
-    isLiked: fi.isLiked,
-    isSaved: fi.isSaved,
-    createdAt: fi.createdAt,
-  }));
-
-  const fallbackPost = {
-    id: crypto.randomUUID(),
-    caption: "Feed post",
-    user: {
-      id: user.id,
-      username: "feeduser",
-      displayName: "Feed User",
-      avatarUrl: "https://storage.example.com/avatars/feed.jpg",
-      isVerified: false,
-    },
-    media: [
-      {
-        id: crypto.randomUUID(),
-        type: "image",
-        url: "https://storage.example.com/posts/feed1.jpg",
-        thumbnailUrl: "https://storage.example.com/posts/thumb_feed1.jpg",
-        width: 1080,
-        height: 1080,
-      }
-    ],
-    likesCount: 10,
-    commentsCount: 2,
-    isLiked: false,
-    isSaved: false,
-    createdAt: new Date().toISOString(),
-  };
-
-  const cursorStr = result.nextCursor ? feedService.getCursorString(result.nextCursor) : "eyJpZCI6IjQ1NiJ9";
+  const cursorStr = result.nextCursor ? feedService.getCursorString(result.nextCursor) : null;
 
   return c.json({
     success: true,
     data: {
       items: feedItems,
-      posts: posts.length > 0 ? posts : [fallbackPost],
       nextCursor: cursorStr,
       hasMore: result.hasMore,
     },

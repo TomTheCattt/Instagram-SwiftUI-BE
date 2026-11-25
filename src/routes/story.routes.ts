@@ -58,45 +58,25 @@ storyRouter.get("/feed", async (c) => {
 
   const mappedStories = (feed || []).map((s: any) => ({
     userId: s.userId || s.authorId || user.id,
-    username: s.username || "storyuser",
-    displayName: s.displayName || s.fullName || "Story User",
-    avatarUrl: s.avatarUrl || "https://storage.example.com/avatars/story.jpg",
+    username: s.username || "user",
+    displayName: s.displayName || s.fullName || s.username || "User",
+    avatarUrl: s.avatarUrl || null,
     isVerified: s.isVerified ?? false,
-    hasUnviewed: s.hasUnviewed ?? true,
+    hasUnviewed: s.hasUnviewed ?? false,
     items: (s.items || []).map((it: any) => ({
       id: it.id,
       type: (it.type || "image").toLowerCase(),
-      mediaUrl: it.mediaUrl || "https://storage.example.com/stories/item1.jpg",
+      mediaUrl: it.mediaUrl,
       duration: parseInt(String(it.duration), 10) || 5,
       isViewed: it.isViewed ?? false,
       createdAt: it.createdAt || new Date().toISOString(),
     })),
   }));
 
-  const fallbackStory = {
-    userId: user.id,
-    username: "storyuser",
-    displayName: "Story User",
-    avatarUrl: "https://storage.example.com/avatars/story.jpg",
-    isVerified: false,
-    hasUnviewed: true,
-    items: [
-      {
-        id: crypto.randomUUID(),
-        type: "image",
-        mediaUrl: "https://storage.example.com/stories/item1.jpg",
-        duration: 5,
-        isViewed: false,
-        createdAt: new Date().toISOString(),
-      }
-    ],
-  };
-
   return c.json({
     success: true,
     data: {
-      items: feed,
-      stories: mappedStories.length > 0 ? mappedStories : [fallbackStory],
+      items: mappedStories,
     },
   });
 });
